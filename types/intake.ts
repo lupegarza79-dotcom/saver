@@ -44,6 +44,13 @@ export interface IntakeVehicle {
   model?: string;
 }
 
+export interface PriceGate {
+  notifyOnlyIfCheaper?: boolean;
+  currentPremiumApprox?: number;
+  targetMonthly?: number;
+  targetSavings?: number;
+}
+
 export interface QuoteInput {
   phone?: string;
   language: Language;
@@ -74,6 +81,7 @@ export interface QuoteInput {
     pip?: boolean;
     medPay?: boolean;
   };
+  priceGate?: PriceGate;
 }
 
 export type MissingSeverity = 'critical' | 'high' | 'medium' | 'low';

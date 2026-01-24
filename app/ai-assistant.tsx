@@ -64,6 +64,10 @@ interface CollectedData {
   collisionDeductible?: number;
   compDeductible?: number;
   zip?: string;
+  notifyOnlyIfCheaper?: boolean;
+  currentPremiumApprox?: number;
+  targetMonthly?: number;
+  targetSavings?: number;
 }
 
 type FlowStep =
@@ -82,6 +86,9 @@ type FlowStep =
   | 'awaiting_coverage_type'
   | 'awaiting_collision_deductible'
   | 'awaiting_comp_deductible'
+  | 'awaiting_price_gate'
+  | 'awaiting_current_premium'
+  | 'awaiting_target_price'
   | 'awaiting_confirmation'
   | 'complete';
 
@@ -195,6 +202,12 @@ export default function AIAssistantScreen() {
 
   const showConfirmationFn = useCallback(() => {
     const data = collectedData.current;
+    const priceGateTextEs = data.notifyOnlyIfCheaper 
+      ? `🔔 Alerta: Solo si < ${data.currentPremiumApprox}${data.targetMonthly ? ` (objetivo: ${data.targetMonthly})` : ''}/mes\n`
+      : '';
+    const priceGateTextEn = data.notifyOnlyIfCheaper 
+      ? `🔔 Alert: Only if < ${data.currentPremiumApprox}${data.targetMonthly ? ` (target: ${data.targetMonthly})` : ''}/mo\n`
+      : '';
     const summary = language === 'es'
       ? `📋 Resumen de tu perfil:\n\n` +
         `📱 Teléfono: ${data.phone}\n` +
@@ -205,6 +218,7 @@ export default function AIAssistantScreen() {
         `📍 ZIP: ${data.zip}\n` +
         `🛡️ Cobertura: ${data.coverageType === 'minimum' ? 'Mínima (30/60/25)' : 'Full Coverage'}\n` +
         (data.coverageType === 'full' ? `💰 Deducibles: Colisión ${data.collisionDeductible} / Comp ${data.compDeductible}\n` : '') +
+        priceGateTextEs +
         `\n¿Todo correcto? Responde "Sí" para enviar.`
       : `📋 Profile Summary:\n\n` +
         `📱 Phone: ${data.phone}\n` +
@@ -215,6 +229,7 @@ export default function AIAssistantScreen() {
         `📍 ZIP: ${data.zip}\n` +
         `🛡️ Coverage: ${data.coverageType === 'minimum' ? 'Minimum (30/60/25)' : 'Full Coverage'}\n` +
         (data.coverageType === 'full' ? `💰 Deductibles: Collision ${data.collisionDeductible} / Comp ${data.compDeductible}\n` : '') +
+        priceGateTextEn +
         `\nLook correct? Reply "Yes" to submit.`;
     addBotMessage(summary, 800);
   }, [addBotMessage, language]);
@@ -240,6 +255,12 @@ export default function AIAssistantScreen() {
           compDeductible: data.compDeductible,
           language: language === 'es' ? 'es' : 'en',
           consentContactAllowed: true,
+          priceGate: data.notifyOnlyIfCheaper ? {
+            notifyOnlyIfCheaper: data.notifyOnlyIfCheaper,
+            currentPremiumApprox: data.currentPremiumApprox,
+            targetMonthly: data.targetMonthly,
+            targetSavings: data.targetSavings,
+          } : undefined,
         },
       });
       setConsentGiven(true);
@@ -445,9 +466,12 @@ export default function AIAssistantScreen() {
         case 'awaiting_coverage_type': {
           if (trimmed.includes('min') || trimmed.includes('mín') || trimmed.includes('basic') || trimmed.includes('30/60')) {
             collectedData.current.coverageType = 'minimum';
-            setFlowStep('awaiting_confirmation');
+            setFlowStep('awaiting_price_gate');
             addBotMessage(t("Got it, minimum coverage.", "Perfecto, cobertura mínima."), 300);
-            setTimeout(() => showConfirmationFn(), 500);
+            setTimeout(() => addBotMessage(t(
+              "Would you like us to notify you only if we find a cheaper price?\n(Yes / No)",
+              "¿Quieres que te notifiquemos solo si encontramos un mejor precio?\n(Sí / No)"
+            ), 800), 500);
           } else if (trimmed.includes('full') || trimmed.includes('complet') || trimmed.includes('collision') || trimmed.includes('colisión')) {
             collectedData.current.coverageType = 'full';
             setFlowStep('awaiting_collision_deductible');
@@ -476,11 +500,71 @@ export default function AIAssistantScreen() {
           const num = parseInt(userInput.replace(/[^0-9]/g, ''));
           if ([250, 500, 1000].includes(num)) {
             collectedData.current.compDeductible = num;
-            setFlowStep('awaiting_confirmation');
-            addBotMessage(t(`Comprehensive: $${num} ✓`, `Comprehensivo: $${num} ✓`), 300);
-            setTimeout(() => showConfirmationFn(), 500);
+            setFlowStep('awaiting_price_gate');
+            addBotMessage(t(`Comprehensive: ${num} ✓`, `Comprehensivo: ${num} ✓`), 300);
+            setTimeout(() => addBotMessage(t(
+              "Would you like us to notify you only if we find a cheaper price?\n(Yes / No)",
+              "¿Quieres que te notifiquemos solo si encontramos un mejor precio?\n(Sí / No)"
+            ), 800), 500);
           } else {
             addBotMessage(t("Please choose $250, $500, or $1000.", "Por favor elige $250, $500, o $1000."), 500);
+          }
+          break;
+        }
+
+        case 'awaiting_price_gate': {
+          if (trimmed.includes('yes') || trimmed.includes('sí') || trimmed.includes('si') || trimmed === 'y') {
+            collectedData.current.notifyOnlyIfCheaper = true;
+            setFlowStep('awaiting_current_premium');
+            addBotMessage(t(
+              "What do you pay now per month? (approx)\nExample: 150",
+              "¿Cuánto pagas ahora por mes? (aprox)\nEjemplo: 150"
+            ), 600);
+          } else if (trimmed.includes('no') || trimmed === 'n') {
+            collectedData.current.notifyOnlyIfCheaper = false;
+            setFlowStep('awaiting_confirmation');
+            addBotMessage(t("Got it, we'll show you all quotes.", "Perfecto, te mostraremos todas las cotizaciones."), 300);
+            setTimeout(() => showConfirmationFn(), 500);
+          } else {
+            addBotMessage(t("Please answer Yes or No.", "Por favor responde Sí o No."), 500);
+          }
+          break;
+        }
+
+        case 'awaiting_current_premium': {
+          const amount = parseInt(userInput.replace(/[^0-9]/g, ''));
+          if (!isNaN(amount) && amount > 0 && amount < 2000) {
+            collectedData.current.currentPremiumApprox = amount;
+            setFlowStep('awaiting_target_price');
+            addBotMessage(t(`Current payment: ${amount}/mo ✓`, `Pago actual: ${amount}/mes ✓`), 300);
+            setTimeout(() => addBotMessage(t(
+              "Target monthly price? (optional)\nOr type 'skip' to continue.",
+              "¿Precio mensual objetivo? (opcional)\nO escribe 'saltar' para continuar."
+            ), 800), 500);
+          } else {
+            addBotMessage(t("Please enter a valid amount (e.g. 150).", "Por favor ingresa un monto válido (ej. 150)."), 500);
+          }
+          break;
+        }
+
+        case 'awaiting_target_price': {
+          if (trimmed.includes('skip') || trimmed.includes('saltar') || trimmed.includes('no')) {
+            setFlowStep('awaiting_confirmation');
+            addBotMessage(t("Price alert set ✓", "Alerta de precio activada ✓"), 300);
+            setTimeout(() => showConfirmationFn(), 500);
+          } else {
+            const target = parseInt(userInput.replace(/[^0-9]/g, ''));
+            if (!isNaN(target) && target > 0 && target < 2000) {
+              collectedData.current.targetMonthly = target;
+              if (collectedData.current.currentPremiumApprox && target < collectedData.current.currentPremiumApprox) {
+                collectedData.current.targetSavings = collectedData.current.currentPremiumApprox - target;
+              }
+              setFlowStep('awaiting_confirmation');
+              addBotMessage(t(`Target: ${target}/mo ✓ Price alert set!`, `Objetivo: ${target}/mes ✓ ¡Alerta de precio activada!`), 300);
+              setTimeout(() => showConfirmationFn(), 500);
+            } else {
+              addBotMessage(t("Please enter a valid amount or 'skip'.", "Por favor ingresa un monto válido o 'saltar'."), 500);
+            }
           }
           break;
         }
@@ -573,6 +657,8 @@ export default function AIAssistantScreen() {
         return [t('Yes', 'Sí'), t('No', 'No')];
       case 'awaiting_coverage_type':
         return [t('Minimum', 'Mínimo'), t('Full Coverage', 'Full Coverage')];
+      case 'awaiting_price_gate':
+        return [t('Yes', 'Sí'), t('No', 'No')];
       case 'awaiting_collision_deductible':
         return ['$500', '$1000'];
       case 'awaiting_comp_deductible':
@@ -591,7 +677,7 @@ export default function AIAssistantScreen() {
   }, [addUserMessage, processInput]);
 
   const progressPercent = useMemo(() => {
-    const steps: FlowStep[] = ['greeting', 'awaiting_phone', 'awaiting_name', 'awaiting_dob', 'awaiting_married', 'awaiting_spouse_driving', 'awaiting_spouse_name', 'awaiting_spouse_dob', 'awaiting_id_upload', 'awaiting_vehicle_count', 'awaiting_vin', 'awaiting_zip', 'awaiting_coverage_type', 'awaiting_collision_deductible', 'awaiting_comp_deductible', 'awaiting_confirmation', 'complete'];
+    const steps: FlowStep[] = ['greeting', 'awaiting_phone', 'awaiting_name', 'awaiting_dob', 'awaiting_married', 'awaiting_spouse_driving', 'awaiting_spouse_name', 'awaiting_spouse_dob', 'awaiting_id_upload', 'awaiting_vehicle_count', 'awaiting_vin', 'awaiting_zip', 'awaiting_coverage_type', 'awaiting_collision_deductible', 'awaiting_comp_deductible', 'awaiting_price_gate', 'awaiting_current_premium', 'awaiting_target_price', 'awaiting_confirmation', 'complete'];
     const idx = steps.indexOf(flowStep);
     return Math.round((idx / (steps.length - 1)) * 100);
   }, [flowStep]);

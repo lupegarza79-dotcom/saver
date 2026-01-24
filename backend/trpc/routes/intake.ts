@@ -17,6 +17,13 @@ import { leadStore } from "../store/leadStore";
 import { isSupabaseConfigured } from "@/backend/supabase/client";
 import type { IntakeStatus } from "@/types/intake";
 
+const priceGateSchema = z.object({
+  notifyOnlyIfCheaper: z.boolean().optional(),
+  currentPremiumApprox: z.number().optional(),
+  targetMonthly: z.number().optional(),
+  targetSavings: z.number().optional(),
+});
+
 const intakeDriverSchema = z.object({
   fullName: z.string().optional(),
   dob: z.string().optional(),
@@ -66,6 +73,7 @@ const intakeCaseSchema = z.object({
     medPay: z.boolean().optional(),
   }).optional(),
   consentContactAllowed: z.boolean().optional(),
+  priceGate: priceGateSchema.optional(),
 });
 
 export const intakeRouter = createTRPCRouter({

@@ -398,6 +398,18 @@ export const translations = {
       checklistRequired: 'Required',
       checklistRecommended: 'Recommended',
     },
+    priceGate: {
+      notifyOnlyCheaper: 'Notify me only if cheaper?',
+      notifyOnlyCheaperHint: 'We\'ll only contact you if we find a better price.',
+      currentPayment: 'What do you pay now per month? (approx)',
+      currentPaymentHint: 'Enter your approximate monthly premium',
+      targetMonthly: 'Target monthly price (optional)',
+      targetMonthlyHint: 'What price would you like to pay?',
+      targetSavings: 'Minimum savings to notify (optional)',
+      targetSavingsHint: 'E.g. "Save at least $20/month"',
+      noBetterPrice: 'No better price yet — we\'ll notify you when we find savings.',
+      priceGateSet: 'Price alert set ✓',
+    },
   },
   es: {
     common: {
@@ -795,6 +807,18 @@ export const translations = {
       sendToAgents: 'Enviar a agentes',
       checklistRequired: 'Requerido',
       checklistRecommended: 'Recomendado',
+    },
+    priceGate: {
+      notifyOnlyCheaper: '¿Notificarme solo si es más barato?',
+      notifyOnlyCheaperHint: 'Solo te contactaremos si encontramos mejor precio.',
+      currentPayment: '¿Cuánto pagas ahora por mes? (aprox)',
+      currentPaymentHint: 'Ingresa tu prima mensual aproximada',
+      targetMonthly: 'Precio mensual objetivo (opcional)',
+      targetMonthlyHint: '¿Qué precio te gustaría pagar?',
+      targetSavings: 'Ahorro mínimo para notificar (opcional)',
+      targetSavingsHint: 'Ej. "Ahorrar al menos $20/mes"',
+      noBetterPrice: 'Aún no hay mejor precio — te notificaremos cuando encontremos ahorros.',
+      priceGateSet: 'Alerta de precio activada ✓',
     },
   },
 };
