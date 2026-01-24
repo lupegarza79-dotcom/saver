@@ -783,41 +783,39 @@ export default function AIAssistantScreen() {
     if (Platform.OS !== 'web') return;
     console.log('[AI_ASSISTANT] Triggering web file picker, type:', type);
 
-    const triggerClick = () => {
-      if (type === 'camera' && webCameraInputRef.current) {
-        console.log('[AI_ASSISTANT] Clicking camera input...');
-        webCameraInputRef.current.click();
-      } else if (webFileInputRef.current) {
-        webFileInputRef.current.accept = type === 'files' ? 'image/*,application/pdf' : 'image/*';
-        console.log('[AI_ASSISTANT] Clicking file input with accept:', webFileInputRef.current.accept);
-        webFileInputRef.current.click();
-      } else {
-        console.error('[AI_ASSISTANT] File input ref is null, using fallback');
-        // Fallback: create temporary input
-        const tempInput = document.createElement('input');
-        tempInput.type = 'file';
-        tempInput.accept = type === 'files' ? 'image/*,application/pdf' : 'image/*';
-        if (type === 'camera') {
-          tempInput.setAttribute('capture', 'environment');
-        }
-        tempInput.style.display = 'none';
-        tempInput.onchange = (e: Event) => {
-          const target = e.target as HTMLInputElement;
-          const file = target.files?.[0];
-          if (file) {
-            handleWebFileSelect(file);
-          }
-          document.body.removeChild(tempInput);
-        };
-        document.body.appendChild(tempInput);
-        tempInput.click();
+    // Always create a fresh input element for iOS Safari compatibility
+    // iOS Safari blocks programmatic clicks on hidden/reused inputs
+    const tempInput = document.createElement('input');
+    tempInput.type = 'file';
+    tempInput.accept = type === 'files' ? 'image/*,application/pdf' : 'image/*';
+    if (type === 'camera') {
+      tempInput.setAttribute('capture', 'environment');
+    }
+    // Use offscreen positioning instead of display:none (iOS blocks display:none clicks)
+    tempInput.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0.01;';
+    
+    tempInput.onchange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (file) {
+        console.log('[AI_ASSISTANT] File selected:', file.name);
+        handleWebFileSelect(file);
       }
+      // Clean up after a delay
+      setTimeout(() => {
+        if (document.body.contains(tempInput)) {
+          document.body.removeChild(tempInput);
+        }
+      }, 1000);
     };
-
-    // Use requestAnimationFrame for better iOS Safari compatibility
-    requestAnimationFrame(() => {
-      setTimeout(triggerClick, 50);
-    });
+    
+    document.body.appendChild(tempInput);
+    
+    // Use setTimeout to ensure DOM is ready before clicking
+    setTimeout(() => {
+      tempInput.click();
+      console.log('[AI_ASSISTANT] Temp file input clicked');
+    }, 100);
   }, [handleWebFileSelect]);
 
   const pickImage = useCallback(async (source: 'camera' | 'library') => {
@@ -1018,13 +1016,13 @@ export default function AIAssistantScreen() {
             accept="image/*,application/pdf"
             onChange={onWebFileChange}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
+              position: 'fixed',
+              top: -9999,
+              left: -9999,
               width: 1,
               height: 1,
-              opacity: 0.001,
-              overflow: 'hidden',
+              opacity: 0.01,
+              pointerEvents: 'none',
             }}
           />
           <input
@@ -1034,13 +1032,13 @@ export default function AIAssistantScreen() {
             capture="environment"
             onChange={onWebFileChange}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
+              position: 'fixed',
+              top: -9999,
+              left: -9999,
               width: 1,
               height: 1,
-              opacity: 0.001,
-              overflow: 'hidden',
+              opacity: 0.01,
+              pointerEvents: 'none',
             }}
           />
         </>

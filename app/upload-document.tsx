@@ -24,7 +24,6 @@ import {
   FileText,
   X,
   CheckCircle,
-  ChevronLeft,
   FolderOpen,
 } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
@@ -304,36 +303,36 @@ export default function UploadDocumentScreen() {
     if (Platform.OS !== 'web') return;
     console.log('[UPLOAD] Triggering web file picker with accept:', accept);
     
-    if (webFileInputRef.current) {
-      webFileInputRef.current.accept = accept;
-      console.log('[UPLOAD] Clicking file input...');
-      // Use requestAnimationFrame for better iOS Safari compatibility
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (webFileInputRef.current) {
-            webFileInputRef.current.click();
-            console.log('[UPLOAD] File input clicked');
-          }
-        }, 50);
-      });
-    } else {
-      console.error('[UPLOAD] webFileInputRef is null!');
-      // Fallback: create a temporary input
-      const tempInput = document.createElement('input');
-      tempInput.type = 'file';
-      tempInput.accept = accept;
-      tempInput.style.display = 'none';
-      tempInput.onchange = (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        const file = target.files?.[0];
-        if (file) {
-          handleWebFileSelect(file);
+    // Always create a fresh input element for iOS Safari compatibility
+    // iOS Safari blocks programmatic clicks on hidden/reused inputs
+    const tempInput = document.createElement('input');
+    tempInput.type = 'file';
+    tempInput.accept = accept;
+    // Use offscreen positioning instead of display:none (iOS blocks display:none clicks)
+    tempInput.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0.01;';
+    
+    tempInput.onchange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (file) {
+        console.log('[UPLOAD] File selected via temp input:', file.name);
+        handleWebFileSelect(file);
+      }
+      // Clean up after a delay to ensure the file is processed
+      setTimeout(() => {
+        if (document.body.contains(tempInput)) {
+          document.body.removeChild(tempInput);
         }
-        document.body.removeChild(tempInput);
-      };
-      document.body.appendChild(tempInput);
+      }, 1000);
+    };
+    
+    document.body.appendChild(tempInput);
+    
+    // Use setTimeout to ensure DOM is ready before clicking
+    setTimeout(() => {
       tempInput.click();
-    }
+      console.log('[UPLOAD] Temp file input clicked');
+    }, 100);
   };
 
   const pickImage = async (source: 'camera' | 'library') => {
@@ -710,13 +709,13 @@ export default function UploadDocumentScreen() {
           accept="image/*,application/pdf"
           onChange={onWebFileChange}
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
             width: 1,
             height: 1,
-            opacity: 0.001,
-            overflow: 'hidden',
+            opacity: 0.01,
+            pointerEvents: 'none',
           }}
         />
       )}

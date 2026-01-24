@@ -13,6 +13,9 @@ import {
   emitLeadReadyToQuote,
   buildMissingFieldsWhatsAppMessage,
 } from "../utils/webhookEmitter";
+import { leadStore } from "../store/leadStore";
+import { isSupabaseConfigured } from "@/backend/supabase/client";
+import type { IntakeStatus } from "@/types/intake";
 
 const intakeDriverSchema = z.object({
   fullName: z.string().optional(),
@@ -88,8 +91,37 @@ export const intakeRouter = createTRPCRouter({
       const completenessScore = Math.max(0, 100 - (requiredMissing.length * 10) - (recommendedMissing.length * 3));
       
       console.log(`[INTAKE] Status: ${status}, Ready: ${ready}, Missing: ${missing.length}`);
+      console.log(`[INTAKE] Supabase configured: ${isSupabaseConfigured()}`);
       
-      const leadId = `lead_${Date.now()}`;
+      // Map LeadIntakeStatus to IntakeStatus for storage
+      const mapStatusToIntakeStatus = (s: string): IntakeStatus => {
+        if (s === 'READY_TO_QUOTE') return 'READY_TO_QUOTE';
+        if (s === 'NEEDS_INFO') return 'NEEDS_INFO';
+        return 'WAITING_DOCS';
+      };
+      
+      // Persist to Supabase via leadStore if configured
+      let leadId: string;
+      try {
+        const leadRecord = await leadStore.create({
+          phone: intake.phone,
+          language: language as 'en' | 'es',
+          consent: intake.consentContactAllowed ?? false,
+          intakeJson: intake as any,
+          status: mapStatusToIntakeStatus(status),
+          canQuote: ready,
+          score: completenessScore,
+          missingRequired: requiredMissing.map(f => ({ fieldKey: f.key, message: f.context || f.labelKey })),
+          missingRecommended: recommendedMissing.map(f => ({ fieldKey: f.key, message: f.context || f.labelKey })),
+          nextQuestionEn: messageData.required[0] || undefined,
+          nextQuestionEs: messageData.required[0] || undefined,
+        });
+        leadId = leadRecord.id;
+        console.log(`[INTAKE] Lead persisted to ${isSupabaseConfigured() ? 'Supabase' : 'memory'}: ${leadId}`);
+      } catch (err) {
+        console.error(`[INTAKE] Failed to persist lead:`, err);
+        leadId = `lead_${Date.now()}`;
+      }
       
       if (ready) {
         console.log(`[INTAKE] Lead ${leadId} is READY_TO_QUOTE, emitting webhook`);

@@ -115,7 +115,7 @@ export default function HomeScreen() {
             : 'Upload your policy. Get real quotes. No spam calls.'}
         </Text>
 
-        <Animated.View style={{ transform: [{ scale: ctaScale }], width: '100%', marginTop: 16 }}>
+        <Animated.View style={{ transform: [{ scale: ctaScale }], width: '100%', marginTop: 12 }}>
           <TouchableOpacity
             style={styles.primaryCTA}
             onPress={handlePrimaryCTA}
@@ -227,8 +227,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -253,21 +253,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
   heroTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "800" as const,
     color: COLORS.text,
     letterSpacing: -1,
-    lineHeight: 34,
-    marginBottom: 8,
+    lineHeight: 32,
+    marginBottom: 6,
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: COLORS.textSecondary,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   primaryCTA: {
     borderRadius: 16,
@@ -295,23 +295,23 @@ const styles = StyleSheet.create({
   trustChipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 16,
+    gap: 8,
+    marginTop: 12,
     justifyContent: 'center',
   },
   trustChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.backgroundLight,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   trustChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600' as const,
     color: COLORS.textSecondary,
   },
@@ -319,56 +319,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
-    paddingVertical: 6,
+    marginTop: 12,
+    paddingVertical: 4,
   },
   whatsappText: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   whatsappLink: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.primaryLight,
     fontWeight: '600' as const,
   },
   howItWorksCard: {
     backgroundColor: COLORS.backgroundLight,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   howItWorksTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: COLORS.text,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 6,
   },
   stepNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: COLORS.primary + '30',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepNumberText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700' as const,
     color: COLORS.primaryLight,
   },
   stepText: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textSecondary,
     flex: 1,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   aiButton: {
     position: 'absolute',
