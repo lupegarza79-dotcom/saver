@@ -26,6 +26,7 @@ import {
   X,
   CheckCircle,
   FolderOpen,
+  MessageCircle,
 } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import { DocumentType, Document, Policy, Vehicle, Driver, Reminder } from '@/types';
@@ -824,7 +825,21 @@ export default function UploadDocumentScreen() {
 
           <Text style={styles.noteText}>{text.note}</Text>
 
-
+          <TouchableOpacity
+            style={styles.chatFallbackButton}
+            onPress={() => {
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+              router.push('/ai-assistant?mode=intake' as any);
+            }}
+            activeOpacity={0.7}
+          >
+            <MessageCircle size={18} color={COLORS.primaryBlue} />
+            <Text style={styles.chatFallbackText}>
+              {language === 'es' ? '¿No tienes tu póliza? Contesta unas preguntas' : "Don't have your policy? Answer a few questions"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -1388,5 +1403,20 @@ const styles = StyleSheet.create({
     color: COLORS.primaryBlue,
     fontWeight: '600' as const,
     textDecorationLine: 'underline',
+  },
+  chatFallbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  chatFallbackText: {
+    fontSize: 14,
+    color: COLORS.primaryBlue,
+    fontWeight: '500' as const,
   },
 });
