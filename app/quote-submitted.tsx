@@ -5,10 +5,13 @@ import {
     StyleSheet,
     TouchableOpacity,
     Animated,
+    Linking,
+    Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle } from 'lucide-react-native';
+import { CheckCircle, MessageCircle, Phone } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 
 const COLORS = {
@@ -18,7 +21,11 @@ const COLORS = {
     primaryBlue: '#1275FF',
     success: '#0BBE7D',
     successLight: '#DCFCE7',
+    whatsapp: '#25D366',
 };
+
+const WHATSAPP_NUMBER = '+19567738844';
+const WHATSAPP_DISPLAY = '+1 956-773-8844';
 
 export default function QuoteSubmittedScreen() {
     const router = useRouter();
@@ -34,14 +41,29 @@ export default function QuoteSubmittedScreen() {
         }).start();
     }, [scaleAnim]);
 
+    const handleWhatsAppPress = () => {
+        if (Platform.OS !== 'web') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        const message = language === 'es'
+            ? 'Hola, acabo de subir mi póliza en Saver. ¿Pueden ayudarme con una cotización?'
+            : 'Hi, I just uploaded my policy on Saver. Can you help me with a quote?';
+        const url = `https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+        Linking.openURL(url);
+    };
+
     const text = {
         title: language === 'es' ? '¡Enviado!' : 'Submitted!',
         message: language === 'es'
-            ? 'Tu información ha sido recibida. Estamos preparando tus cotizaciones y te avisaremos pronto.'
-            : 'Your information has been received. We\'re preparing your quotes and will notify you soon.',
-        subMessage: language === 'es'
-            ? 'Esto usualmente toma menos de 24 horas.'
-            : 'This usually takes less than 24 hours.',
+            ? 'Recibimos tu póliza y tus datos.'
+            : 'We received your policy and details.',
+        nextStep: language === 'es'
+            ? 'Te contactaremos por WhatsApp:'
+            : "We'll contact you via WhatsApp:",
+        whatsappButton: language === 'es' ? 'Enviar mensaje ahora' : 'Send a message now',
+        timeNote: language === 'es'
+            ? 'Normalmente respondemos en menos de 24 horas.'
+            : 'We typically respond within 24 hours.',
         button: language === 'es' ? 'Volver al inicio' : 'Go to Home',
     };
 
@@ -56,12 +78,30 @@ export default function QuoteSubmittedScreen() {
                         },
                     ]}
                 >
-                    <CheckCircle size={80} color={COLORS.success} />
+                    <CheckCircle size={72} color={COLORS.success} />
                 </Animated.View>
 
                 <Text style={styles.title}>{text.title}</Text>
                 <Text style={styles.message}>{text.message}</Text>
-                <Text style={styles.subMessage}>{text.subMessage}</Text>
+
+                <View style={styles.whatsappSection}>
+                    <Text style={styles.nextStepText}>{text.nextStep}</Text>
+                    <View style={styles.phoneRow}>
+                        <Phone size={18} color={COLORS.whatsapp} />
+                        <Text style={styles.phoneNumber}>{WHATSAPP_DISPLAY}</Text>
+                    </View>
+                    
+                    <TouchableOpacity
+                        style={styles.whatsappButton}
+                        onPress={handleWhatsAppPress}
+                        activeOpacity={0.8}
+                    >
+                        <MessageCircle size={20} color="#FFFFFF" />
+                        <Text style={styles.whatsappButtonText}>{text.whatsappButton}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <Text style={styles.timeNote}>{text.timeNote}</Text>
 
                 <TouchableOpacity
                     style={styles.button}
@@ -86,40 +126,82 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     iconContainer: {
-        marginBottom: 32,
+        marginBottom: 24,
     },
     title: {
-        fontSize: 32,
-        fontWeight: '700',
+        fontSize: 28,
+        fontWeight: '700' as const,
         color: COLORS.text,
-        marginBottom: 16,
+        marginBottom: 12,
         textAlign: 'center',
     },
     message: {
-        fontSize: 18,
+        fontSize: 17,
         color: COLORS.textSecondary,
         textAlign: 'center',
-        lineHeight: 26,
-        marginBottom: 12,
-        paddingHorizontal: 20,
+        lineHeight: 24,
+        marginBottom: 24,
+        paddingHorizontal: 16,
     },
-    subMessage: {
+    whatsappSection: {
+        width: '100%',
+        backgroundColor: COLORS.successLight,
+        borderRadius: 16,
+        padding: 20,
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    nextStepText: {
+        fontSize: 15,
+        color: COLORS.text,
+        fontWeight: '600' as const,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    phoneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 16,
+    },
+    phoneNumber: {
+        fontSize: 18,
+        fontWeight: '700' as const,
+        color: COLORS.whatsapp,
+    },
+    whatsappButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.whatsapp,
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        borderRadius: 12,
+        gap: 10,
+        width: '100%',
+    },
+    whatsappButtonText: {
         fontSize: 16,
+        fontWeight: '700' as const,
+        color: '#FFFFFF',
+    },
+    timeNote: {
+        fontSize: 14,
         color: COLORS.textSecondary,
         textAlign: 'center',
-        marginBottom: 48,
+        marginBottom: 32,
     },
     button: {
         backgroundColor: COLORS.primaryBlue,
         paddingVertical: 16,
         paddingHorizontal: 48,
-        borderRadius: 16,
+        borderRadius: 14,
         minWidth: 200,
         alignItems: 'center',
     },
     buttonText: {
-        fontSize: 17,
-        fontWeight: '700',
+        fontSize: 16,
+        fontWeight: '700' as const,
         color: '#FFFFFF',
     },
 });

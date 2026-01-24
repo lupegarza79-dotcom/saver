@@ -14,14 +14,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import {
   Shield,
   Upload,
-  FileSearch,
   MessageCircle,
-  CheckCircle2,
   Users,
   ChevronRight,
-  Zap,
-  Clock,
-  DollarSign,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/contexts/AppContext";
@@ -107,16 +102,16 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <LinearGradient
         colors={[COLORS.primary, COLORS.primaryDark]}
-        style={styles.headerGradient}
+        style={[styles.headerGradient, { paddingTop: insets.top }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
 
-      <View style={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.content, { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 8) }]}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoIcon}>
-              <Shield size={18} color="#FFFFFF" />
+              <Shield size={16} color="#FFFFFF" />
             </View>
             <Text style={styles.logoText}>Saver</Text>
           </View>
@@ -134,26 +129,17 @@ export default function HomeScreen() {
             onPress={handleUpload}
             activeOpacity={0.9}
           >
-            <Upload size={20} color={COLORS.primary} />
+            <Upload size={18} color={COLORS.primary} />
             <Text style={styles.primaryCTAText}>{t.uploadCta}</Text>
           </TouchableOpacity>
         </Animated.View>
 
         <View style={styles.trustBadges}>
-          <View style={styles.trustItem}>
-            <DollarSign size={14} color={COLORS.success} />
-            <Text style={styles.trustText}>{t.trustFree}</Text>
-          </View>
-          <View style={styles.trustDot} />
-          <View style={styles.trustItem}>
-            <Zap size={14} color={COLORS.accent} />
-            <Text style={styles.trustText}>{t.trustEasy}</Text>
-          </View>
-          <View style={styles.trustDot} />
-          <View style={styles.trustItem}>
-            <Clock size={14} color={COLORS.primary} />
-            <Text style={styles.trustText}>{t.trustFast}</Text>
-          </View>
+          <Text style={styles.trustChip}>{t.trustFree}</Text>
+          <Text style={styles.trustDot}>•</Text>
+          <Text style={styles.trustChip}>{t.trustEasy}</Text>
+          <Text style={styles.trustDot}>•</Text>
+          <Text style={styles.trustChip}>{t.trustFast}</Text>
         </View>
 
         <View style={styles.howItWorksSection}>
@@ -161,22 +147,16 @@ export default function HomeScreen() {
           
           <View style={styles.stepsCard}>
             <View style={styles.stepRow}>
-              <View style={styles.stepIconWrapper}>
-                <FileSearch size={18} color={COLORS.primary} />
-              </View>
-              <Text style={styles.stepText}>1. {t.step1}</Text>
+              <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+              <Text style={styles.stepText}>{t.step1}</Text>
             </View>
             <View style={styles.stepRow}>
-              <View style={styles.stepIconWrapper}>
-                <CheckCircle2 size={18} color={COLORS.success} />
-              </View>
-              <Text style={styles.stepText}>2. {t.step2}</Text>
+              <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+              <Text style={styles.stepText}>{t.step2}</Text>
             </View>
             <View style={styles.stepRow}>
-              <View style={styles.stepIconWrapper}>
-                <MessageCircle size={18} color={COLORS.accent} />
-              </View>
-              <Text style={styles.stepText}>3. {t.step3}</Text>
+              <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+              <Text style={styles.stepText}>{t.step3}</Text>
             </View>
           </View>
         </View>
@@ -187,32 +167,27 @@ export default function HomeScreen() {
             onPress={handleWhatsApp}
             activeOpacity={0.8}
           >
-            <MessageCircle size={18} color="#25D366" />
+            <MessageCircle size={16} color="#25D366" />
             <Text style={styles.whatsappCTAText}>{t.whatsappCta}</Text>
           </TouchableOpacity>
         </Animated.View>
 
-        <View style={styles.agentSection}>
-          <TouchableOpacity
-            style={styles.agentCard}
-            onPress={handleAgentsPress}
-            activeOpacity={0.7}
-          >
-            <View style={styles.agentCardLeft}>
-              <View style={styles.agentIconWrapper}>
-                <Users size={20} color={COLORS.primary} />
-              </View>
-              <View style={styles.agentTextContent}>
-                <Text style={styles.agentCardTitle}>{t.agentTitle}</Text>
-                <Text style={styles.agentCardSubtitle}>{t.agentSubtitle}</Text>
-              </View>
+        <TouchableOpacity
+          style={styles.agentCard}
+          onPress={handleAgentsPress}
+          activeOpacity={0.7}
+        >
+          <View style={styles.agentCardLeft}>
+            <View style={styles.agentIconWrapper}>
+              <Users size={18} color={COLORS.primary} />
             </View>
-            <View style={styles.agentCtaWrapper}>
-              <Text style={styles.agentCtaText}>{t.agentCta}</Text>
-              <ChevronRight size={16} color={COLORS.primary} />
+            <View style={styles.agentTextContent}>
+              <Text style={styles.agentCardTitle}>{t.agentTitle}</Text>
+              <Text style={styles.agentCardSubtitle}>{t.agentSubtitle}</Text>
             </View>
-          </TouchableOpacity>
-        </View>
+          </View>
+          <ChevronRight size={16} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -228,76 +203,76 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 260,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    height: 240,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     justifyContent: 'space-between',
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 8,
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   logoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700" as const,
     color: '#FFFFFF',
     letterSpacing: -0.5,
   },
   heroSection: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   heroTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "800" as const,
     color: '#FFFFFF',
-    letterSpacing: -1,
-    lineHeight: 34,
-    marginBottom: 8,
+    letterSpacing: -0.8,
+    lineHeight: 30,
+    marginBottom: 4,
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   ctaContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   primaryCTA: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 28,
-    borderRadius: 14,
-    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   primaryCTAText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: COLORS.primary,
     letterSpacing: 0.2,
@@ -306,112 +281,109 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
-    gap: 10,
+    marginBottom: 12,
+    gap: 6,
   },
-  trustItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  trustText: {
+  trustChip: {
     fontSize: 11,
     fontWeight: '700' as const,
-    color: 'rgba(255,255,255,0.9)',
-    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.95)',
+    letterSpacing: 0.8,
   },
   trustDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
   },
   howItWorksSection: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: COLORS.text,
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   stepsCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
     elevation: 2,
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  stepIconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.background,
+  stepNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  stepNumberText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
   stepText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.text,
     fontWeight: '500' as const,
   },
   whatsappContainer: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   whatsappCTA: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 6,
     borderWidth: 1.5,
     borderColor: '#25D366',
   },
   whatsappCTAText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#25D366',
-  },
-  agentSection: {
-    marginTop: 'auto',
   },
   agentCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
     elevation: 2,
   },
   agentCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     flex: 1,
   },
   agentIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: 'rgba(37, 99, 235, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -420,23 +392,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   agentCardTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700' as const,
     color: COLORS.text,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   agentCardSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textSecondary,
-  },
-  agentCtaWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  agentCtaText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: COLORS.primary,
   },
 });

@@ -30,8 +30,25 @@ function RootLayoutNav() {
       <Stack.Screen
         name="upload-document"
         options={{
-          headerShown: false,
+          headerShown: true,
+          headerTitle: 'Upload Policy',
+          headerBackTitle: 'Back',
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="ai-assistant"
+        options={{
+          headerShown: true,
+          headerTitle: 'Saver',
+          headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="quote-submitted"
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
