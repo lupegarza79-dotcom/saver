@@ -208,7 +208,7 @@ export default function PolicyDetailScreen() {
               <View style={styles.snapshotActions}>
                 <TouchableOpacity 
                   style={styles.fixButton}
-                  onPress={() => router.push('/quotes')}
+                  onPress={() => router.push('/_future/quotes' as any)}
                 >
                   <LinearGradient
                     colors={[Colors.secondary, Colors.info]}
@@ -332,7 +332,7 @@ export default function PolicyDetailScreen() {
             <Text style={styles.sectionTitle}>{t.policy?.vehicleEvidenceTitle || 'Vehicle Evidence'}</Text>
             <TouchableOpacity 
               style={styles.evidenceCard}
-              onPress={() => router.push(`/evidence-wizard?policyId=${policy.id}&type=pre_inspection`)}
+              onPress={() => router.push(`/_future/evidence-wizard?policyId=${policy.id}&type=pre_inspection` as any)}
             >
               <View style={styles.evidenceCardBorder} />
               {videoEvidence ? (
@@ -424,7 +424,7 @@ export default function PolicyDetailScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/quotes')}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/_future/quotes' as any)}>
             <View style={styles.actionCardBorder} />
             <View style={styles.actionContent}>
               <View style={[styles.actionIcon, { backgroundColor: Colors.success + '15' }]}>

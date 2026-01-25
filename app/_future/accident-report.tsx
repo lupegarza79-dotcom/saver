@@ -383,7 +383,7 @@ export default function AccidentReportScreen() {
                 ) : (
                   <TouchableOpacity 
                     style={styles.videoEvidenceButton}
-                    onPress={() => router.push(`/evidence-wizard?caseId=${caseId}&type=incident`)}
+                    onPress={() => router.push(`/_future/evidence-wizard?caseId=${caseId}&type=incident` as any)}
                   >
                     <Video size={20} color={Colors.textInverse} />
                     <Text style={styles.videoEvidenceButtonText}>

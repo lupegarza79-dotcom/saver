@@ -180,7 +180,7 @@ export default function AgentDashboardScreen() {
             </Text>
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={() => router.push('/agent-onboarding')}
+              onPress={() => router.push('/_future/agent-onboarding' as any)}
             >
               <Text style={styles.primaryButtonText}>Become an Agent</Text>
             </TouchableOpacity>
@@ -319,7 +319,7 @@ export default function AgentDashboardScreen() {
 
           <TouchableOpacity
             style={styles.planCard}
-            onPress={() => router.push('/agent-subscription')}
+            onPress={() => router.push('/_future/agent-subscription' as any)}
           >
             <View style={styles.planCardBorder} />
             <View style={styles.planInfo}>
