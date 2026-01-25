@@ -65,7 +65,8 @@ if (supabaseUrl && supabaseServiceKey) {
   });
   console.log('[SUPABASE] Client initialized with URL:', supabaseUrl);
 } else {
-  console.warn('[SUPABASE] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY - using in-memory fallback');
+  console.error('[SUPABASE] ⚠️ CRITICAL: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  console.error('[SUPABASE] Production requires Supabase. Leads will NOT be persisted without it.');
 }
 
 export const supabase = supabaseClient;
@@ -74,9 +75,17 @@ export function isSupabaseConfigured(): boolean {
   return supabaseClient !== null;
 }
 
+export function requireSupabase(): void {
+  if (!supabaseClient) {
+    throw new Error(
+      'SUPABASE NOT CONFIGURED: Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables. Leads cannot be saved without Supabase in production.'
+    );
+  }
+}
+
 export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
-    throw new Error('Supabase not configured');
+    throw new Error('Supabase not configured - set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
   }
   return supabaseClient;
 }

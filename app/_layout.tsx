@@ -20,13 +20,8 @@ function RootLayoutNav() {
         contentStyle: { backgroundColor: '#F7F9FC' },
       }}
     >
+      {/* v1 Consumer Screens */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="agents"
-        options={{
-          headerShown: false,
-        }}
-      />
       <Stack.Screen
         name="upload-document"
         options={{
@@ -51,6 +46,23 @@ function RootLayoutNav() {
           gestureEnabled: false,
         }}
       />
+      <Stack.Screen
+        name="modal"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+      
+      {/* Agent entry (minimal) */}
+      <Stack.Screen
+        name="agents"
+        options={{
+          headerShown: false,
+        }}
+      />
+      
+      {/* Admin for MG operations */}
       <Stack.Screen
         name="admin"
         options={{

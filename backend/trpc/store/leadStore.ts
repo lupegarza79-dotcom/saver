@@ -478,7 +478,7 @@ const supabaseStore = new LeadStoreSupabase();
 
 export const leadStore = {
   generateId(): string {
-    return isSupabaseConfigured() ? supabaseStore.generateId() : memoryStore.generateId();
+    return supabaseStore.generateId();
   },
 
   async create(data: {
@@ -497,6 +497,7 @@ export const leadStore = {
     if (isSupabaseConfigured()) {
       return supabaseStore.create(data);
     }
+    console.warn('[LEAD_STORE] ⚠️ Supabase not configured - using memory fallback (data will be lost on restart)');
     return memoryStore.create(data);
   },
 
