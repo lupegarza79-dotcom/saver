@@ -1,43 +1,26 @@
-import React, { useRef, useCallback } from "react";
+import React, { useMemo, useRef, useCallback } from "react";
 import {
   View,
   Text,
+  Pressable,
   StyleSheet,
-  TouchableOpacity,
   Platform,
   Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { Upload, MessageCircle, Shield, BadgeCheck } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  Shield,
-  Upload,
-  MessageCircle,
-  Users,
-} from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/contexts/AppContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
-
-const COLORS = {
-  background: '#FFFFFF',
-  primary: '#2563EB',
-  primaryDark: '#1D4ED8',
-  text: '#0F172A',
-  textSecondary: '#475569',
-  textMuted: '#94A3B8',
-  border: '#E2E8F0',
-  surface: '#F8FAFC',
-};
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { language } = useApp();
+  const { language, setLanguage } = useApp();
 
   const uploadScale = useRef(new Animated.Value(1)).current;
   const chatScale = useRef(new Animated.Value(1)).current;
-  const agentScale = useRef(new Animated.Value(1)).current;
 
   const animatePress = useCallback((scale: Animated.Value) => {
     Animated.sequence([
@@ -46,280 +29,364 @@ export default function HomeScreen() {
     ]).start();
   }, []);
 
+  const isEs = language === "es";
+
+  const copy = useMemo(() => {
+    if (isEs) {
+      return {
+        title: "Ahorra en\nSeguro de Auto",
+        subtitle: "Sube tu póliza o contesta preguntas.\nRecibe cotizaciones reales. Sin spam.",
+        chips: "GRATIS • FÁCIL • RÁPIDO",
+        uploadTitle: "Subir Póliza",
+        uploadSub: "Declarations Page o ID Cards",
+        chatTop: "¿No tienes tu póliza?",
+        chatTitle: "Contesta unas preguntas",
+        chatSub: "Te guiamos 1-por-1 para armar tu perfil",
+        agent: "Soy Agente",
+        trust1: "Sin llamadas",
+        trust2: "Tú eliges",
+        trust3: "Ahorros reales",
+      };
+    }
+    return {
+      title: "Save on\nAuto Insurance",
+      subtitle: "Upload your policy or answer a few questions.\nGet real quotes. No spam.",
+      chips: "FREE • EASY • FAST",
+      uploadTitle: "Upload Policy",
+      uploadSub: "Declarations Page or ID Cards",
+      chatTop: "Don't have your policy?",
+      chatTitle: "Answer a few questions",
+      chatSub: "We guide you one-by-one to build your profile",
+      agent: "I'm an Agent",
+      trust1: "No calls",
+      trust2: "You choose",
+      trust3: "Real savings",
+    };
+  }, [isEs]);
+
   const handleUpload = () => {
     animatePress(uploadScale);
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    router.push("/upload-document" as any);
+    router.push("/upload-document");
   };
 
-  const handleChatIntake = () => {
+  const handleChat = () => {
     animatePress(chatScale);
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    router.push("/ai-assistant?mode=intake" as any);
+    router.push("/ai-assistant?mode=intake");
   };
 
-  const handleAgentsPress = () => {
-    animatePress(agentScale);
+  const handleAgentPress = () => {
     if (Platform.OS !== "web") {
       Haptics.selectionAsync();
     }
-    router.push("/agents" as any);
-  };
-
-  const t = {
-    heroTitle: language === 'es' ? 'Ahorra en Seguro de Auto' : 'Save on Auto Insurance',
-    heroSubtitle: language === 'es' 
-      ? 'Sube tu póliza o responde unas preguntas.\nRecibe cotizaciones reales. Sin spam.' 
-      : 'Upload your policy or answer a few questions.\nGet real quotes. No spam.',
-    uploadCta: language === 'es' ? 'Subir Póliza' : 'Upload Policy',
-    uploadHint: language === 'es' ? 'Declarations Page o ID Cards' : 'Declarations Page or ID Cards',
-    chatCta: language === 'es' ? '¿No tienes tu póliza?' : "Don't have your policy?",
-    chatCtaAction: language === 'es' ? 'Contesta unas preguntas' : 'Answer a few questions',
-    trustFree: language === 'es' ? 'GRATIS' : 'FREE',
-    trustEasy: language === 'es' ? 'FÁCIL' : 'EASY',
-    trustFast: language === 'es' ? 'RÁPIDO' : 'FAST',
-    trustWhatsApp: language === 'es' ? 'Solo WhatsApp' : 'WhatsApp only',
-    agentCta: language === 'es' ? 'Soy Agente' : "I'm an Agent",
+    router.push("/agents");
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 24) }]}>
+    <View style={[styles.root, { paddingTop: Math.max(insets.top, 14) }]}>
+      <LinearGradient
+        colors={["#0B1220", "#0B1B3A", "#0B1220"]}
+        style={StyleSheet.absoluteFill}
+      />
+
       <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoIcon}>
+        <View style={styles.brandRow}>
+          <View style={styles.brandIcon}>
             <Shield size={18} color="#FFFFFF" />
           </View>
-          <Text style={styles.logoText}>Saver</Text>
+          <Text style={styles.brandText}>Saver</Text>
         </View>
-        <LanguageSwitcher variant="pill" />
-      </View>
 
-      <View style={styles.heroSection}>
-        <Text style={styles.heroTitle}>{t.heroTitle}</Text>
-        <Text style={styles.heroSubtitle}>{t.heroSubtitle}</Text>
-      </View>
-
-      <View style={styles.trustBadges}>
-        <Text style={styles.trustChip}>{t.trustFree}</Text>
-        <Text style={styles.trustDot}>•</Text>
-        <Text style={styles.trustChip}>{t.trustEasy}</Text>
-        <Text style={styles.trustDot}>•</Text>
-        <Text style={styles.trustChip}>{t.trustFast}</Text>
-        <Text style={styles.trustDot}>•</Text>
-        <Text style={styles.trustChipWhatsApp}>{t.trustWhatsApp}</Text>
-      </View>
-
-      <View style={styles.actionsContainer}>
-        <Animated.View style={{ transform: [{ scale: uploadScale }] }}>
-          <TouchableOpacity
-            style={styles.primaryCTA}
-            onPress={handleUpload}
-            activeOpacity={0.9}
+        <View style={styles.langPill}>
+          <Pressable
+            onPress={() => setLanguage("en")}
+            style={[styles.langBtn, language === "en" && styles.langBtnActive]}
           >
-            <Upload size={22} color="#FFFFFF" />
-            <View style={styles.ctaTextContainer}>
-              <Text style={styles.primaryCTAText}>{t.uploadCta}</Text>
-              <Text style={styles.primaryCTAHint}>{t.uploadHint}</Text>
+            <Text style={[styles.langText, language === "en" && styles.langTextActive]}>
+              EN
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setLanguage("es")}
+            style={[styles.langBtn, language === "es" && styles.langBtnActive]}
+          >
+            <Text style={[styles.langText, language === "es" && styles.langTextActive]}>
+              ES
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.subtitle}>{copy.subtitle}</Text>
+
+        <Text style={styles.chips}>{copy.chips}</Text>
+
+        <Animated.View style={{ transform: [{ scale: uploadScale }] }}>
+          <Pressable
+            onPress={handleUpload}
+            style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.92 }]}
+          >
+            <View style={styles.primaryLeft}>
+              <Upload size={20} color="#FFFFFF" />
             </View>
-          </TouchableOpacity>
+            <View style={styles.btnTextWrap}>
+              <Text style={styles.primaryTitle}>{copy.uploadTitle}</Text>
+              <Text style={styles.primarySub}>{copy.uploadSub}</Text>
+            </View>
+          </Pressable>
         </Animated.View>
 
-        <View style={styles.dividerContainer}>
+        <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>{language === 'es' ? 'o' : 'or'}</Text>
+          <Text style={styles.dividerText}>{isEs ? "o" : "or"}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         <Animated.View style={{ transform: [{ scale: chatScale }] }}>
-          <TouchableOpacity
-            style={styles.secondaryCTA}
-            onPress={handleChatIntake}
-            activeOpacity={0.8}
+          <Pressable
+            onPress={handleChat}
+            style={({ pressed }) => [styles.secondaryCard, pressed && { opacity: 0.94 }]}
           >
-            <MessageCircle size={20} color={COLORS.primary} />
-            <View style={styles.ctaTextContainer}>
-              <Text style={styles.secondaryCTALabel}>{t.chatCta}</Text>
-              <Text style={styles.secondaryCTAText}>{t.chatCtaAction}</Text>
+            <View style={styles.secondaryIcon}>
+              <MessageCircle size={20} color="#0B5FFF" />
             </View>
-          </TouchableOpacity>
+            <View style={styles.btnTextWrap}>
+              <Text style={styles.secondaryTop}>{copy.chatTop}</Text>
+              <Text style={styles.secondaryTitle}>{copy.chatTitle}</Text>
+              <Text style={styles.secondarySub}>{copy.chatSub}</Text>
+            </View>
+          </Pressable>
         </Animated.View>
+
+        <View style={styles.trustRow}>
+          <View style={styles.trustChip}>
+            <BadgeCheck size={16} color="#22C55E" />
+            <Text style={styles.trustText}>{copy.trust1}</Text>
+          </View>
+          <View style={styles.trustChip}>
+            <BadgeCheck size={16} color="#22C55E" />
+            <Text style={styles.trustText}>{copy.trust2}</Text>
+          </View>
+          <View style={styles.trustChip}>
+            <BadgeCheck size={16} color="#22C55E" />
+            <Text style={styles.trustText}>{copy.trust3}</Text>
+          </View>
+        </View>
       </View>
 
-      <View style={styles.footer}>
-        <Animated.View style={{ transform: [{ scale: agentScale }] }}>
-          <TouchableOpacity
-            style={styles.agentButton}
-            onPress={handleAgentsPress}
-            activeOpacity={0.8}
-          >
-            <Users size={16} color={COLORS.textMuted} />
-            <Text style={styles.agentButtonText}>{t.agentCta}</Text>
-          </TouchableOpacity>
-        </Animated.View>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+        <Pressable onPress={handleAgentPress} style={styles.agentLink}>
+          <Text style={styles.agentText}>{copy.agent}</Text>
+        </Pressable>
+        <Text style={styles.footerTiny}>Saver v1.0</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: { 
     flex: 1,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
   },
   header: {
+    paddingHorizontal: 18,
+    paddingTop: 6,
+    paddingBottom: 8,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 32,
+    justifyContent: "space-between",
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  brandRow: { 
+    flexDirection: "row", 
+    alignItems: "center", 
     gap: 10,
   },
-  logoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  brandIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(59,130,246,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  logoText: {
-    fontSize: 22,
-    fontWeight: "700" as const,
-    color: COLORS.text,
+  brandText: { 
+    color: "#EAF2FF", 
+    fontWeight: "900" as const, 
+    fontSize: 18,
+  },
+  langPill: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderRadius: 999,
+    padding: 4,
+    gap: 4,
+  },
+  langBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  langBtnActive: { 
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  langText: { 
+    color: "rgba(255,255,255,0.75)", 
+    fontWeight: "800" as const, 
+    fontSize: 12,
+  },
+  langTextActive: { 
+    color: "#FFFFFF",
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 18,
+    justifyContent: "center",
+    gap: 14,
+  },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: "900" as const,
     letterSpacing: -0.5,
   },
-  heroSection: {
-    alignItems: 'center',
-    marginBottom: 20,
+  subtitle: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600" as const,
   },
-  heroTitle: {
-    fontSize: 30,
-    fontWeight: "800" as const,
-    color: COLORS.text,
-    letterSpacing: -1,
-    lineHeight: 38,
-    marginBottom: 12,
-    textAlign: 'center',
+  chips: {
+    color: "rgba(255,255,255,0.80)",
+    fontSize: 12,
+    letterSpacing: 2,
+    fontWeight: "900" as const,
   },
-  heroSubtitle: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    lineHeight: 24,
-    textAlign: 'center',
+  primaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "#0B5FFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
   },
-  trustBadges: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
+  primaryLeft: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnTextWrap: {
+    flex: 1,
+  },
+  primaryTitle: { 
+    color: "#FFFFFF", 
+    fontSize: 16, 
+    fontWeight: "900" as const,
+  },
+  primarySub: { 
+    color: "rgba(255,255,255,0.80)", 
+    fontSize: 12, 
+    marginTop: 2, 
+    fontWeight: "700" as const,
+  },
+  dividerRow: { 
+    flexDirection: "row", 
+    alignItems: "center", 
     gap: 10,
   },
-  trustChip: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-    color: COLORS.primary,
-    letterSpacing: 1,
+  dividerLine: { 
+    flex: 1, 
+    height: 1, 
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
-  trustDot: {
-    fontSize: 12,
-    color: COLORS.textMuted,
+  dividerText: { 
+    color: "rgba(255,255,255,0.50)", 
+    fontWeight: "800" as const,
   },
-  trustChipWhatsApp: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#25D366',
+  secondaryCard: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.92)",
   },
-  actionsContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: 16,
+  secondaryIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "rgba(11,95,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  primaryCTA: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    gap: 14,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+  secondaryTop: { 
+    color: "#334155", 
+    fontSize: 12, 
+    fontWeight: "800" as const,
   },
-  ctaTextContainer: {
-    flex: 1,
-  },
-  primaryCTAText: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-  primaryCTAHint: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
+  secondaryTitle: { 
+    color: "#0F172A", 
+    fontSize: 16, 
+    fontWeight: "900" as const, 
     marginTop: 2,
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
+  secondarySub: { 
+    color: "#475569", 
+    fontSize: 12, 
+    fontWeight: "700" as const, 
+    marginTop: 2,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
+  trustRow: { 
+    flexDirection: "row", 
+    gap: 10, 
+    flexWrap: "wrap",
   },
-  dividerText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    fontWeight: '500' as const,
-  },
-  secondaryCTA: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    gap: 12,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-  },
-  secondaryCTALabel: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-  },
-  secondaryCTAText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: COLORS.primary,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingTop: 16,
-  },
-  agentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  trustChip: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
   },
-  agentButtonText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    fontWeight: '500' as const,
+  trustText: { 
+    color: "rgba(255,255,255,0.85)", 
+    fontWeight: "800" as const, 
+    fontSize: 12,
+  },
+  footer: { 
+    paddingHorizontal: 18, 
+    paddingTop: 6,
+  },
+  agentLink: { 
+    alignSelf: "center", 
+    paddingVertical: 10, 
+    paddingHorizontal: 14,
+  },
+  agentText: { 
+    color: "rgba(255,255,255,0.65)", 
+    fontWeight: "800" as const,
+  },
+  footerTiny: { 
+    textAlign: "center", 
+    color: "rgba(255,255,255,0.35)", 
+    fontWeight: "700" as const, 
+    fontSize: 12,
   },
 });

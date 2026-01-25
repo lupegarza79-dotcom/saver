@@ -3,43 +3,32 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Animated,
   Alert,
   Image,
+  FlatList,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import {
   Send,
   Camera,
   Image as ImageIcon,
   FileText,
+  Plus,
+  X,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 import { validateVin, validateDob } from '@/utils/quoteReadiness';
 import { trpc } from '@/lib/trpc';
-
-const COLORS = {
-  background: '#FFFFFF',
-  botBubble: '#F2F3F5',
-  userBubble: '#007AFF',
-  botText: '#000000',
-  userText: '#FFFFFF',
-  inputBg: '#F2F3F5',
-  inputBorder: '#E5E5EA',
-  placeholder: '#8E8E93',
-  sendButton: '#007AFF',
-  success: '#34C759',
-};
 
 interface ChatMessage {
   id: string;
@@ -92,53 +81,51 @@ type FlowStep =
   | 'awaiting_confirmation'
   | 'complete';
 
-function MessageBubble({ role, content, image, isTyping }: { role: 'user' | 'assistant'; content: string; image?: string; isTyping?: boolean }) {
-  const isUser = role === 'user';
-  const dotAnim1 = useRef(new Animated.Value(0)).current;
-  const dotAnim2 = useRef(new Animated.Value(0)).current;
-  const dotAnim3 = useRef(new Animated.Value(0)).current;
+function TypingIndicator() {
+  const dotAnim1 = useRef(new Animated.Value(0.4)).current;
+  const dotAnim2 = useRef(new Animated.Value(0.4)).current;
+  const dotAnim3 = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    if (isTyping) {
-      const animate = (anim: Animated.Value, delay: number) => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.delay(delay),
-            Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
-            Animated.timing(anim, { toValue: 0, duration: 300, useNativeDriver: true }),
-          ])
-        ).start();
-      };
-      animate(dotAnim1, 0);
-      animate(dotAnim2, 150);
-      animate(dotAnim3, 300);
-    }
-  }, [isTyping, dotAnim1, dotAnim2, dotAnim3]);
-
-  if (isTyping) {
-    return (
-      <View style={[styles.bubbleRow, styles.bubbleRowBot]}>
-        <View style={[styles.bubble, styles.botBubble]}>
-          <View style={styles.typingContainer}>
-            {[dotAnim1, dotAnim2, dotAnim3].map((anim, i) => (
-              <Animated.View
-                key={i}
-                style={[styles.typingDot, { opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }]}
-              />
-            ))}
-          </View>
-        </View>
-      </View>
-    );
-  }
+    const animate = (anim: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.4, duration: 300, useNativeDriver: true }),
+        ])
+      ).start();
+    };
+    animate(dotAnim1, 0);
+    animate(dotAnim2, 150);
+    animate(dotAnim3, 300);
+  }, [dotAnim1, dotAnim2, dotAnim3]);
 
   return (
-    <View style={[styles.bubbleRow, isUser ? styles.bubbleRowUser : styles.bubbleRowBot]}>
+    <View style={[styles.row, styles.rowLeft]}>
+      <View style={[styles.bubble, styles.botBubble]}>
+        <View style={styles.typingContainer}>
+          {[dotAnim1, dotAnim2, dotAnim3].map((anim, i) => (
+            <Animated.View
+              key={i}
+              style={[styles.typingDot, { opacity: anim }]}
+            />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function MessageBubble({ role, text, image }: { role: 'user' | 'assistant'; text: string; image?: string }) {
+  const isUser = role === 'user';
+  return (
+    <View style={[styles.row, isUser ? styles.rowRight : styles.rowLeft]}>
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
         {image && (
           <Image source={{ uri: image }} style={styles.bubbleImage} resizeMode="cover" />
         )}
-        <Text style={[styles.bubbleText, isUser ? styles.userText : styles.botText]}>{content}</Text>
+        <Text style={[styles.bubbleText, isUser ? styles.userText : styles.botText]}>{text}</Text>
       </View>
     </View>
   );
@@ -147,7 +134,8 @@ function MessageBubble({ role, content, image, isTyping }: { role: 'user' | 'ass
 export default function AIAssistantScreen() {
   const { language, setConsentGiven } = useApp();
   const router = useRouter();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList>(null);
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -156,6 +144,7 @@ export default function AIAssistantScreen() {
   const [showIdUpload, setShowIdUpload] = useState(false);
   const [currentVinIndex, setCurrentVinIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   
   const collectedData = useRef<CollectedData>({});
 
@@ -197,16 +186,16 @@ export default function AIAssistantScreen() {
   }, [messages.length, addBotMessage, t]);
 
   useEffect(() => {
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages, isTyping]);
 
   const showConfirmationFn = useCallback(() => {
     const data = collectedData.current;
     const priceGateTextEs = data.notifyOnlyIfCheaper 
-      ? `🔔 Alerta: Solo si < ${data.currentPremiumApprox}${data.targetMonthly ? ` (objetivo: ${data.targetMonthly})` : ''}/mes\n`
+      ? `🔔 Alerta: Solo si < $${data.currentPremiumApprox}${data.targetMonthly ? ` (objetivo: $${data.targetMonthly})` : ''}/mes\n`
       : '';
     const priceGateTextEn = data.notifyOnlyIfCheaper 
-      ? `🔔 Alert: Only if < ${data.currentPremiumApprox}${data.targetMonthly ? ` (target: ${data.targetMonthly})` : ''}/mo\n`
+      ? `🔔 Alert: Only if < $${data.currentPremiumApprox}${data.targetMonthly ? ` (target: $${data.targetMonthly})` : ''}/mo\n`
       : '';
     const summary = language === 'es'
       ? `📋 Resumen de tu perfil:\n\n` +
@@ -217,7 +206,7 @@ export default function AIAssistantScreen() {
         `🚗 Vehículos: ${data.vehicleCount}\n` +
         `📍 ZIP: ${data.zip}\n` +
         `🛡️ Cobertura: ${data.coverageType === 'minimum' ? 'Mínima (30/60/25)' : 'Full Coverage'}\n` +
-        (data.coverageType === 'full' ? `💰 Deducibles: Colisión ${data.collisionDeductible} / Comp ${data.compDeductible}\n` : '') +
+        (data.coverageType === 'full' ? `💰 Deducibles: Colisión $${data.collisionDeductible} / Comp $${data.compDeductible}\n` : '') +
         priceGateTextEs +
         `\n¿Todo correcto? Responde "Sí" para enviar.`
       : `📋 Profile Summary:\n\n` +
@@ -228,7 +217,7 @@ export default function AIAssistantScreen() {
         `🚗 Vehicles: ${data.vehicleCount}\n` +
         `📍 ZIP: ${data.zip}\n` +
         `🛡️ Coverage: ${data.coverageType === 'minimum' ? 'Minimum (30/60/25)' : 'Full Coverage'}\n` +
-        (data.coverageType === 'full' ? `💰 Deductibles: Collision ${data.collisionDeductible} / Comp ${data.compDeductible}\n` : '') +
+        (data.coverageType === 'full' ? `💰 Deductibles: Collision $${data.collisionDeductible} / Comp $${data.compDeductible}\n` : '') +
         priceGateTextEn +
         `\nLook correct? Reply "Yes" to submit.`;
     addBotMessage(summary, 800);
@@ -398,7 +387,7 @@ export default function AIAssistantScreen() {
             addBotMessage(imageUri ? t("ID received ✓", "ID recibido ✓") : t("Skipped", "Omitido"), 300);
             setTimeout(() => addBotMessage(t("How many vehicles do you want to insure?\n(1, 2, 3, etc.)", "¿Cuántos vehículos quieres asegurar?\n(1, 2, 3, etc.)"), 800), 500);
           } else {
-            addBotMessage(t("Please upload a photo of your ID using the buttons below, or type 'skip'.", "Por favor sube foto de tu ID usando los botones de abajo, o escribe 'saltar'."), 500);
+            addBotMessage(t("Please upload a photo of your ID using the + button, or type 'skip'.", "Por favor sube foto de tu ID usando el botón +, o escribe 'saltar'."), 500);
           }
           break;
         }
@@ -501,7 +490,7 @@ export default function AIAssistantScreen() {
           if ([250, 500, 1000].includes(num)) {
             collectedData.current.compDeductible = num;
             setFlowStep('awaiting_price_gate');
-            addBotMessage(t(`Comprehensive: ${num} ✓`, `Comprehensivo: ${num} ✓`), 300);
+            addBotMessage(t(`Comprehensive: $${num} ✓`, `Comprehensivo: $${num} ✓`), 300);
             setTimeout(() => addBotMessage(t(
               "Would you like us to notify you only if we find a cheaper price?\n(Yes / No)",
               "¿Quieres que te notifiquemos solo si encontramos un mejor precio?\n(Sí / No)"
@@ -536,7 +525,7 @@ export default function AIAssistantScreen() {
           if (!isNaN(amount) && amount > 0 && amount < 2000) {
             collectedData.current.currentPremiumApprox = amount;
             setFlowStep('awaiting_target_price');
-            addBotMessage(t(`Current payment: ${amount}/mo ✓`, `Pago actual: ${amount}/mes ✓`), 300);
+            addBotMessage(t(`Current payment: $${amount}/mo ✓`, `Pago actual: $${amount}/mes ✓`), 300);
             setTimeout(() => addBotMessage(t(
               "Target monthly price? (optional)\nOr type 'skip' to continue.",
               "¿Precio mensual objetivo? (opcional)\nO escribe 'saltar' para continuar."
@@ -560,7 +549,7 @@ export default function AIAssistantScreen() {
                 collectedData.current.targetSavings = collectedData.current.currentPremiumApprox - target;
               }
               setFlowStep('awaiting_confirmation');
-              addBotMessage(t(`Target: ${target}/mo ✓ Price alert set!`, `Objetivo: ${target}/mes ✓ ¡Alerta de precio activada!`), 300);
+              addBotMessage(t(`Target: $${target}/mo ✓ Price alert set!`, `Objetivo: $${target}/mes ✓ ¡Alerta de precio activada!`), 300);
               setTimeout(() => showConfirmationFn(), 500);
             } else {
               addBotMessage(t("Please enter a valid amount or 'skip'.", "Por favor ingresa un monto válido o 'saltar'."), 500);
@@ -592,8 +581,6 @@ export default function AIAssistantScreen() {
     }
   }, [flowStep, currentVinIndex, addBotMessage, t, showConfirmationFn, submitProfileFn]);
 
-
-
   const handleSend = useCallback(() => {
     if (!input.trim() || isProcessing) return;
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -606,6 +593,7 @@ export default function AIAssistantScreen() {
 
   const handleImageUpload = useCallback(async (source: 'camera' | 'library') => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowAttachMenu(false);
 
     try {
       let result;
@@ -638,6 +626,7 @@ export default function AIAssistantScreen() {
 
   const handleDocumentPick = useCallback(async () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowAttachMenu(false);
 
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'], copyToCacheDirectory: true });
@@ -682,11 +671,26 @@ export default function AIAssistantScreen() {
     return Math.round((idx / (steps.length - 1)) * 100);
   }, [flowStep]);
 
+  const renderMessage = useCallback(({ item }: { item: ChatMessage }) => (
+    <MessageBubble role={item.role} text={item.text} image={item.image} />
+  ), []);
+
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Saver', headerStyle: { backgroundColor: COLORS.background }, headerTintColor: '#000', headerShadowVisible: false }} />
+    <View style={styles.page}>
+      <Stack.Screen 
+        options={{ 
+          title: 'Saver', 
+          headerStyle: { backgroundColor: '#FFFFFF' }, 
+          headerTintColor: '#0F172A',
+          headerShadowVisible: false,
+        }} 
+      />
       
-      <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <KeyboardAvoidingView 
+        style={styles.kav} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
         {flowStep !== 'complete' && (
           <View style={styles.progressWrapper}>
             <View style={styles.progressTrack}>
@@ -695,95 +699,273 @@ export default function AIAssistantScreen() {
           </View>
         )}
 
-        <ScrollView ref={scrollViewRef} style={styles.messagesContainer} contentContainerStyle={styles.messagesContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} role={msg.role} content={msg.text} image={msg.image} />
-          ))}
-          {isTyping && <MessageBubble role="assistant" content="" isTyping />}
+        <View style={styles.listWrap}>
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={(m) => m.id}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListFooterComponent={
+              <>
+                {isTyping && <TypingIndicator />}
+                {quickReplies && !isTyping && (
+                  <View style={styles.quickRepliesRow}>
+                    {quickReplies.map((reply, idx) => (
+                      <Pressable 
+                        key={idx} 
+                        style={({ pressed }) => [styles.quickReplyButton, pressed && { opacity: 0.8 }]} 
+                        onPress={() => handleQuickReply(reply)}
+                      >
+                        <Text style={styles.quickReplyText}>{reply}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </>
+            }
+          />
+        </View>
 
-          {quickReplies && !isTyping && (
-            <View style={styles.quickRepliesRow}>
-              {quickReplies.map((reply, idx) => (
-                <TouchableOpacity key={idx} style={styles.quickReplyButton} onPress={() => handleQuickReply(reply)} activeOpacity={0.7}>
-                  <Text style={styles.quickReplyText}>{reply}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </ScrollView>
-
-        {showIdUpload && (
-          <View style={styles.uploadPanel}>
+        {showAttachMenu && (
+          <View style={styles.attachMenu}>
+            <Pressable style={styles.attachClose} onPress={() => setShowAttachMenu(false)}>
+              <X size={20} color="#64748B" />
+            </Pressable>
             {Platform.OS !== 'web' && (
-              <TouchableOpacity style={styles.uploadButton} onPress={() => handleImageUpload('camera')} activeOpacity={0.7}>
-                <Camera size={24} color={COLORS.sendButton} />
-                <Text style={styles.uploadButtonText}>{t('Take photo', 'Tomar foto')}</Text>
-              </TouchableOpacity>
+              <Pressable style={styles.attachOption} onPress={() => handleImageUpload('camera')}>
+                <Camera size={24} color="#007AFF" />
+                <Text style={styles.attachText}>{t('Take photo', 'Tomar foto')}</Text>
+              </Pressable>
             )}
-            <TouchableOpacity style={styles.uploadButton} onPress={() => handleImageUpload('library')} activeOpacity={0.7}>
-              <ImageIcon size={24} color={COLORS.sendButton} />
-              <Text style={styles.uploadButtonText}>{t('Choose photo', 'Elegir foto')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.uploadButton} onPress={handleDocumentPick} activeOpacity={0.7}>
-              <FileText size={24} color={COLORS.sendButton} />
-              <Text style={styles.uploadButtonText}>{t('Upload file', 'Subir archivo')}</Text>
-            </TouchableOpacity>
+            <Pressable style={styles.attachOption} onPress={() => handleImageUpload('library')}>
+              <ImageIcon size={24} color="#007AFF" />
+              <Text style={styles.attachText}>{t('Choose photo', 'Elegir foto')}</Text>
+            </Pressable>
+            <Pressable style={styles.attachOption} onPress={handleDocumentPick}>
+              <FileText size={24} color="#007AFF" />
+              <Text style={styles.attachText}>{t('Upload file', 'Subir archivo')}</Text>
+            </Pressable>
           </View>
         )}
 
-        <SafeAreaView edges={['bottom']} style={styles.inputWrapper}>
-          <View style={styles.inputRow}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                value={input}
-                onChangeText={setInput}
-                placeholder={t('Type your answer...', 'Escribe tu respuesta...')}
-                placeholderTextColor={COLORS.placeholder}
-                onSubmitEditing={handleSend}
-                editable={!isProcessing}
-              />
-            </View>
-            <TouchableOpacity style={[styles.sendButton, (!input.trim() || isProcessing) && styles.sendButtonDisabled]} onPress={handleSend} disabled={!input.trim() || isProcessing} activeOpacity={0.7}>
-              {isProcessing ? <ActivityIndicator size="small" color="#FFF" /> : <Send size={18} color="#FFF" />}
-            </TouchableOpacity>
+        <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          {showIdUpload && (
+            <Pressable 
+              style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]} 
+              onPress={() => setShowAttachMenu(v => !v)}
+            >
+              <Plus size={20} color="#007AFF" />
+            </Pressable>
+          )}
+
+          <View style={styles.inputWrap}>
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder={language === 'es' ? 'Escribe tu respuesta...' : 'Type your answer...'}
+              placeholderTextColor="#94A3B8"
+              style={styles.input}
+              multiline
+              onSubmitEditing={handleSend}
+              editable={!isProcessing}
+            />
           </View>
-        </SafeAreaView>
+
+          <Pressable
+            style={[styles.sendBtn, (!input?.trim() || isProcessing) && { opacity: 0.5 }]}
+            onPress={handleSend}
+            disabled={!input?.trim() || isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Send size={18} color="#FFFFFF" />
+            )}
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  keyboardView: { flex: 1 },
-  progressWrapper: { paddingHorizontal: 20, paddingVertical: 12, backgroundColor: COLORS.background, borderBottomWidth: 1, borderBottomColor: COLORS.inputBorder },
-  progressTrack: { height: 4, backgroundColor: COLORS.inputBg, borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: COLORS.sendButton, borderRadius: 2 },
-  messagesContainer: { flex: 1 },
-  messagesContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
-  bubbleRow: { marginBottom: 8, flexDirection: 'row' },
-  bubbleRowUser: { justifyContent: 'flex-end' },
-  bubbleRowBot: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '80%', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 18 },
-  userBubble: { backgroundColor: COLORS.userBubble, borderBottomRightRadius: 4 },
-  botBubble: { backgroundColor: COLORS.botBubble, borderBottomLeftRadius: 4 },
-  bubbleText: { fontSize: 16, lineHeight: 22 },
-  userText: { color: COLORS.userText },
-  botText: { color: COLORS.botText },
-  bubbleImage: { width: 180, height: 120, borderRadius: 12, marginBottom: 8 },
-  typingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 4 },
-  typingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.placeholder },
-  quickRepliesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12, paddingLeft: 4 },
-  quickReplyButton: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: COLORS.background, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.sendButton },
-  quickReplyText: { fontSize: 15, fontWeight: '500' as const, color: COLORS.sendButton },
-  uploadPanel: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 16, paddingHorizontal: 16, backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.inputBorder },
-  uploadButton: { alignItems: 'center', gap: 6 },
-  uploadButtonText: { fontSize: 12, color: COLORS.botText },
-  inputWrapper: { backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.inputBorder, paddingHorizontal: 12, paddingTop: 8 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  inputContainer: { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, minHeight: 40, justifyContent: 'center' },
-  input: { fontSize: 16, color: COLORS.botText, paddingVertical: 0 },
-  sendButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.sendButton, alignItems: 'center', justifyContent: 'center' },
-  sendButtonDisabled: { backgroundColor: '#C7C7CC' },
+  page: { 
+    flex: 1, 
+    backgroundColor: '#FFFFFF',
+  },
+  kav: { 
+    flex: 1,
+  },
+  progressWrapper: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 10, 
+    backgroundColor: '#FFFFFF', 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#F1F5F9',
+  },
+  progressTrack: { 
+    height: 4, 
+    backgroundColor: '#F1F5F9', 
+    borderRadius: 2, 
+    overflow: 'hidden',
+  },
+  progressFill: { 
+    height: '100%', 
+    backgroundColor: '#007AFF', 
+    borderRadius: 2,
+  },
+  listWrap: { 
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 20,
+    paddingTop: 10,
+  },
+  row: { 
+    marginVertical: 6, 
+    flexDirection: 'row',
+  },
+  rowLeft: { 
+    justifyContent: 'flex-start',
+  },
+  rowRight: { 
+    justifyContent: 'flex-end',
+  },
+  bubble: {
+    maxWidth: '78%',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+  },
+  botBubble: { 
+    backgroundColor: '#F2F3F5', 
+    borderTopLeftRadius: 6,
+  },
+  userBubble: { 
+    backgroundColor: '#007AFF', 
+    borderTopRightRadius: 6,
+  },
+  bubbleText: { 
+    fontSize: 16, 
+    lineHeight: 22,
+  },
+  botText: { 
+    color: '#0F172A',
+  },
+  userText: { 
+    color: '#FFFFFF',
+  },
+  bubbleImage: { 
+    width: 180, 
+    height: 120, 
+    borderRadius: 12, 
+    marginBottom: 8,
+  },
+  typingContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 4, 
+    paddingVertical: 4, 
+    paddingHorizontal: 4,
+  },
+  typingDot: { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    backgroundColor: '#94A3B8',
+  },
+  quickRepliesRow: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: 10, 
+    marginTop: 12, 
+    paddingLeft: 4,
+  },
+  quickReplyButton: { 
+    paddingHorizontal: 18, 
+    paddingVertical: 10, 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 20, 
+    borderWidth: 1.5, 
+    borderColor: '#007AFF',
+  },
+  quickReplyText: { 
+    fontSize: 15, 
+    fontWeight: '600' as const, 
+    color: '#007AFF',
+  },
+  attachMenu: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 20,
+  },
+  attachClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachOption: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  attachText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500' as const,
+  },
+  inputBar: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputWrap: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+  },
+  input: {
+    fontSize: 16,
+    color: '#0F172A',
+    paddingVertical: 0,
+  },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
