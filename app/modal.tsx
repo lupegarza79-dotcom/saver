@@ -14,6 +14,8 @@ import {
   ChevronRight,
   Sparkles,
   RefreshCw,
+  FileText,
+  CheckCircle,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -41,9 +43,92 @@ const FALLBACK_AGENTS: Agent[] = [
   },
 ];
 
+function TermsContent() {
+  const router = useRouter();
+  const { language } = useApp();
+  const isEs = language === 'es';
+
+  const copy = useMemo(() => {
+    if (isEs) {
+      return {
+        title: 'Términos y Privacidad',
+        intro: 'Al usar Saver, aceptas lo siguiente:',
+        points: [
+          'Compartimos tu información solo con agentes licenciados para obtener cotizaciones.',
+          'Sin llamadas de spam. Preferimos WhatsApp/texto.',
+          'El "Price Gate" solo filtra qué cotizaciones te mostramos. Los agentes no ven tu precio.',
+          'Al continuar aceptas que te contactemos para cotizaciones de seguro.',
+        ],
+        lastUpdated: 'Última actualización: Enero 2025',
+        close: 'Cerrar',
+      };
+    }
+    return {
+      title: 'Terms & Privacy',
+      intro: 'By using Saver, you agree to the following:',
+      points: [
+        'We share your info with licensed agents only to obtain quotes.',
+        'No spam calls. WhatsApp/text preferred.',
+        'Price Gate is used only to filter which quotes you receive. Agents do not see your price.',
+        'By continuing you consent to be contacted for insurance quotes.',
+      ],
+      lastUpdated: 'Last updated: January 2025',
+      close: 'Close',
+    };
+  }, [isEs]);
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+            <X size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{copy.title}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </SafeAreaView>
+
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.termsContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.termsIconContainer}>
+          <FileText size={32} color={Colors.secondary} />
+        </View>
+        
+        <Text style={styles.termsIntro}>{copy.intro}</Text>
+        
+        <View style={styles.termsPoints}>
+          {copy.points.map((point, index) => (
+            <View key={index} style={styles.termsPointRow}>
+              <View style={styles.termsPointIcon}>
+                <CheckCircle size={18} color={Colors.success} />
+              </View>
+              <Text style={styles.termsPointText}>{point}</Text>
+            </View>
+          ))}
+        </View>
+        
+        <Text style={styles.termsUpdated}>{copy.lastUpdated}</Text>
+      </ScrollView>
+
+      <SafeAreaView edges={['bottom']} style={styles.footer}>
+        <TouchableOpacity
+          style={styles.termsCloseButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.termsCloseButtonText}>{copy.close}</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    </View>
+  );
+}
+
 export default function AgentSelectionModal() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ policyId?: string; snapshotId?: string }>();
+  const params = useLocalSearchParams<{ policyId?: string; snapshotId?: string; type?: string }>();
   const { t, policies, user, language } = useApp();
   
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
@@ -75,6 +160,10 @@ export default function AgentSelectionModal() {
   }, [agentsQuery.data]);
 
   const isLoading = agentsQuery.isLoading;
+
+  if (params.type === 'terms') {
+    return <TermsContent />;
+  }
 
   const toggleAgent = (agentId: string) => {
     if (Platform.OS !== 'web') Haptics.selectionAsync();
@@ -726,5 +815,64 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+  },
+  termsContent: {
+    padding: 24,
+    alignItems: 'center' as const,
+  },
+  termsIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: Colors.secondary + '15',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 24,
+  },
+  termsIntro: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    textAlign: 'center' as const,
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  termsPoints: {
+    width: '100%',
+    gap: 16,
+    marginBottom: 32,
+  },
+  termsPointRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 12,
+  },
+  termsPointIcon: {
+    marginTop: 2,
+  },
+  termsPointText: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  termsUpdated: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 8,
+  },
+  termsCloseButton: {
+    backgroundColor: Colors.secondary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    alignItems: 'center' as const,
+  },
+  termsCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textInverse,
   },
 });

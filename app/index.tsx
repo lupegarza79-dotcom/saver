@@ -42,7 +42,7 @@ export default function HomeScreen() {
         chatTop: "¿No tienes tu póliza?",
         chatTitle: "Contesta unas preguntas",
         chatSub: "Te guiamos 1-por-1 para armar tu perfil",
-        agent: "Soy Agente",
+        agent: "Soy Agente (Recibir leads)",
         trust1: "Sin llamadas",
         trust2: "Tú eliges",
         trust3: "Ahorros reales",
@@ -57,7 +57,7 @@ export default function HomeScreen() {
       chatTop: "Don't have your policy?",
       chatTitle: "Answer a few questions",
       chatSub: "We guide you one-by-one to build your profile",
-      agent: "I'm an Agent",
+      agent: "I'm an Agent (Get leads)",
       trust1: "No calls",
       trust2: "You choose",
       trust3: "Real savings",
@@ -128,20 +128,22 @@ export default function HomeScreen() {
 
         <Text style={styles.chips}>{copy.chips}</Text>
 
-        <Animated.View style={{ transform: [{ scale: uploadScale }] }}>
-          <Pressable
-            onPress={handleUpload}
-            style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.92 }]}
-          >
-            <View style={styles.primaryLeft}>
-              <Upload size={20} color="#FFFFFF" />
-            </View>
-            <View style={styles.btnTextWrap}>
-              <Text style={styles.primaryTitle}>{copy.uploadTitle}</Text>
-              <Text style={styles.primarySub}>{copy.uploadSub}</Text>
-            </View>
-          </Pressable>
-        </Animated.View>
+        <View style={styles.uploadGlow}>
+          <Animated.View style={{ transform: [{ scale: uploadScale }] }}>
+            <Pressable
+              onPress={handleUpload}
+              style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.92 }]}
+            >
+              <View style={styles.primaryLeft}>
+                <Upload size={20} color="#FFFFFF" />
+              </View>
+              <View style={styles.btnTextWrap}>
+                <Text style={styles.primaryTitle}>{copy.uploadTitle}</Text>
+                <Text style={styles.primarySub}>{copy.uploadSub}</Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </View>
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
@@ -185,7 +187,13 @@ export default function HomeScreen() {
         <Pressable onPress={handleAgentPress} style={styles.agentLink}>
           <Text style={styles.agentText}>{copy.agent}</Text>
         </Pressable>
-        <Text style={styles.footerTiny}>Saver v1.0</Text>
+        <View style={styles.footerRow}>
+          <Pressable onPress={() => router.push('/modal?type=terms')}>
+            <Text style={styles.termsLink}>{isEs ? 'Términos' : 'Terms'}</Text>
+          </Pressable>
+          <Text style={styles.footerDot}>·</Text>
+          <Text style={styles.footerTiny}>Saver v1.0</Text>
+        </View>
       </View>
     </View>
   );
@@ -268,6 +276,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 2,
     fontWeight: "900" as const,
+  },
+  uploadGlow: {
+    borderRadius: 22,
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 4 },
   },
   primaryBtn: {
     flexDirection: "row",
@@ -383,8 +398,23 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.65)", 
     fontWeight: "800" as const,
   },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  termsLink: {
+    color: "rgba(255,255,255,0.50)",
+    fontWeight: "700" as const,
+    fontSize: 12,
+    textDecorationLine: "underline" as const,
+  },
+  footerDot: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 12,
+  },
   footerTiny: { 
-    textAlign: "center", 
     color: "rgba(255,255,255,0.35)", 
     fontWeight: "700" as const, 
     fontSize: 12,

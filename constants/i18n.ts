@@ -410,6 +410,15 @@ export const translations = {
       noBetterPrice: 'No better price yet — we\'ll notify you when we find savings.',
       priceGateSet: 'Price alert set ✓',
     },
+    terms: {
+      title: 'Terms & Privacy',
+      intro: 'By using Saver, you agree to the following:',
+      point1: 'We share your info with licensed agents only to obtain quotes.',
+      point2: 'No spam calls. WhatsApp/text preferred.',
+      point3: 'Price Gate is used only to filter which quotes you receive. Agents do not see your price.',
+      point4: 'By continuing you consent to be contacted for insurance quotes.',
+      lastUpdated: 'Last updated: January 2025',
+    },
   },
   es: {
     common: {
@@ -819,6 +828,15 @@ export const translations = {
       targetSavingsHint: 'Ej. "Ahorrar al menos $20/mes"',
       noBetterPrice: 'Aún no hay mejor precio — te notificaremos cuando encontremos ahorros.',
       priceGateSet: 'Alerta de precio activada ✓',
+    },
+    terms: {
+      title: 'Términos y Privacidad',
+      intro: 'Al usar Saver, aceptas lo siguiente:',
+      point1: 'Compartimos tu información solo con agentes licenciados para obtener cotizaciones.',
+      point2: 'Sin llamadas de spam. Preferimos WhatsApp/texto.',
+      point3: 'El "Price Gate" solo filtra qué cotizaciones te mostramos. Los agentes no ven tu precio.',
+      point4: 'Al continuar aceptas que te contactemos para cotizaciones de seguro.',
+      lastUpdated: 'Última actualización: Enero 2025',
     },
   },
 };
