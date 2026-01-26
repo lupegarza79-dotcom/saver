@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { FileText, Upload, MessageCircle, Shield } from "lucide-react-native";
+import { Upload, MessageCircle, Shield } from "lucide-react-native";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/contexts/AppContext";
@@ -18,7 +19,7 @@ import { useApp } from "@/contexts/AppContext";
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { language, setLanguage } = useApp();
+  const { language } = useApp();
 
   const quoteScale = useRef(new Animated.Value(1)).current;
   const uploadScale = useRef(new Animated.Value(1)).current;
@@ -106,7 +107,7 @@ export default function HomeScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 16 }]}>
         <View style={styles.brandRow}>
           <View style={styles.brandIcon}>
             <Shield size={18} color="#FFFFFF" />
@@ -114,24 +115,7 @@ export default function HomeScreen() {
           <Text style={styles.brandText}>Saver</Text>
         </View>
 
-        <View style={styles.langPill}>
-          <Pressable
-            onPress={() => setLanguage("en")}
-            style={[styles.langBtn, language === "en" && styles.langBtnActive]}
-          >
-            <Text style={[styles.langText, language === "en" && styles.langTextActive]}>
-              EN
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setLanguage("es")}
-            style={[styles.langBtn, language === "es" && styles.langBtnActive]}
-          >
-            <Text style={[styles.langText, language === "es" && styles.langTextActive]}>
-              ES
-            </Text>
-          </Pressable>
-        </View>
+        <LanguageSwitcher variant="pill" />
       </View>
 
       <View style={styles.content}>
@@ -232,28 +216,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: -0.5,
   },
-  langPill: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 999,
-    padding: 3,
-  },
-  langBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-  },
-  langBtnActive: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  langText: {
-    color: "rgba(255,255,255,0.6)",
-    fontWeight: "700" as const,
-    fontSize: 13,
-  },
-  langTextActive: {
-    color: "#FFFFFF",
-  },
+  
   content: {
     flex: 1,
     paddingHorizontal: 24,
