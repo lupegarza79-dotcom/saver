@@ -27,6 +27,7 @@ import {
   CheckCircle,
   FolderOpen,
   MessageCircle,
+  ArrowLeft,
 } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import { DocumentType, Document, Policy, Vehicle, Driver, Reminder } from '@/types';
@@ -261,8 +262,14 @@ export default function UploadDocumentScreen() {
 
     // Check both local state and context state
     if (hasShownConsent || consentGiven) {
-      console.log('[UPLOAD] Consent already given, showing action sheet');
-      setShowActionSheet(true);
+      console.log('[UPLOAD] Consent already given');
+      // On web, directly trigger file picker (no camera/library options)
+      if (Platform.OS === 'web') {
+        console.log('[UPLOAD] Web platform - directly triggering file picker');
+        triggerWebFilePicker('image/jpeg,image/png,application/pdf');
+      } else {
+        setShowActionSheet(true);
+      }
     } else {
       console.log('[UPLOAD] Showing consent modal');
       setShowConsentModal(true);
@@ -274,9 +281,15 @@ export default function UploadDocumentScreen() {
       setShowConsentModal(false);
       setHasShownConsent(true);
       setConsentGiven(true);
-      // Small timeout to ensure modal closes before next one opens
+      // Small timeout to ensure modal closes before picker opens
       setTimeout(() => {
-        setShowActionSheet(true);
+        // On web, directly trigger file picker (no camera/library options)
+        if (Platform.OS === 'web') {
+          console.log('[UPLOAD] Web platform - directly triggering file picker after consent');
+          triggerWebFilePicker('image/jpeg,image/png,application/pdf');
+        } else {
+          setShowActionSheet(true);
+        }
       }, 300);
     }
   };
@@ -707,9 +720,27 @@ export default function UploadDocumentScreen() {
 
   const headerTitle = language === 'es' ? 'Subir Póliza' : 'Upload Policy';
 
+  const handleBackPress = () => {
+    router.back();
+  };
+
   return (
     <SafeAreaView edges={['bottom']} style={styles.container}>
-      <Stack.Screen options={{ title: headerTitle, headerBackTitle: language === 'es' ? 'Atrás' : 'Back' }} />
+      <Stack.Screen 
+        options={{ 
+          title: headerTitle, 
+          headerBackTitle: language === 'es' ? 'Atrás' : 'Back',
+          headerLeft: () => (
+            <TouchableOpacity 
+              onPress={handleBackPress} 
+              style={styles.headerBackButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <ArrowLeft size={24} color={COLORS.text} />
+            </TouchableOpacity>
+          ),
+        }} 
+      />
       {Platform.OS === 'web' && (
         <input
           ref={webFileInputRef as React.RefObject<HTMLInputElement>}
@@ -846,16 +877,16 @@ export default function UploadDocumentScreen() {
         </View>
       </ScrollView>
 
-      {uploadedFiles.length > 0 && uploadedFiles.some(f => f.isValidDecPage || f.isScanning || f.confidence && f.confidence > 30) && (
+      {uploadedFiles.length > 0 && (
         <SafeAreaView edges={['bottom']} style={styles.footer}>
           <View style={[styles.footerInner, isWeb && styles.webFooter]}>
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (uploadedFiles.some(f => f.isScanning) || !uploadedFiles.some(f => f.isValidDecPage !== false)) && styles.submitButtonDisabled
+                (uploadedFiles.length === 0 || uploadedFiles.some(f => f.isScanning)) && styles.submitButtonDisabled
               ]}
               onPress={handleSubmit}
-              disabled={uploadedFiles.some(f => f.isScanning) || isUploading || !uploadedFiles.some(f => f.isValidDecPage !== false)}
+              disabled={uploadedFiles.length === 0 || uploadedFiles.some(f => f.isScanning) || isUploading}
             >
               <Text style={styles.submitButtonText}>
                 {isUploading ? text.processing : (language === 'es' ? 'Analizar mi póliza' : 'Analyze my policy')}
@@ -1030,6 +1061,10 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 44,
+  },
+  headerBackButton: {
+    padding: 4,
+    marginLeft: Platform.OS === 'ios' ? 0 : -8,
   },
   content: {
     flex: 1,
