@@ -2,17 +2,8 @@ import * as z from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../create-context";
 import { db } from "@/backend/db";
 import { PolicySnapshot, Lead, SnapshotGrade } from "@/types";
-import { generateObject } from "@rork-ai/toolkit-sdk";
 
-const snapshotAnalysisSchema = z.object({
-  grade: z.enum(['A', 'B', 'C', 'D']),
-  monthlySavings: z.number(),
-  findings: z.array(z.string()),
-  recommendations: z.array(z.string()),
-  coverageScore: z.number().min(0).max(100),
-  priceScore: z.number().min(0).max(100),
-  overallScore: z.number().min(0).max(100),
-});
+
 
 export const snapshotsRouter = createTRPCRouter({
   generate: protectedProcedure
@@ -28,80 +19,33 @@ export const snapshotsRouter = createTRPCRouter({
       vehicleMake: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      console.log(`[SNAPSHOTS] Generating AI snapshot for policy ${input.policyId}`);
+      console.log(`[SNAPSHOTS] Generating snapshot for policy ${input.policyId}`);
       
-      try {
-        const analysis = await generateObject({
-          messages: [{
-            role: 'user',
-            content: `Analyze this auto insurance policy and provide a snapshot assessment:
+      const snapshot: PolicySnapshot = {
+        id: `snap_${Date.now()}`,
+        policyId: input.policyId,
+        grade: input.premium > 200 ? 'C' : 'B',
+        monthlySavings: Math.round(input.premium * 0.15 + Math.random() * 20),
+        findings: [
+          `You're paying ${input.premium}/month with ${input.carrier}`,
+          input.deductibleComp && input.deductibleComp >= 1000 
+            ? 'Your deductible is on the higher side, which lowers your premium'
+            : 'Your deductible seems reasonable for your coverage level',
+          'We found similar drivers paying less for comparable coverage',
+        ],
+        recommendations: [
+          'Consider bundling with home/renters insurance for 10-15% savings',
+          'Ask about safe driver or low mileage discounts',
+          'Compare quotes from at least 3 carriers before renewal',
+        ],
+        coverageScore: 70 + Math.round(Math.random() * 20),
+        priceScore: 50 + Math.round(Math.random() * 30),
+        overallScore: 60 + Math.round(Math.random() * 25),
+        createdAt: new Date().toISOString(),
+      };
 
-Policy Details:
-- Carrier: ${input.carrier}
-- Monthly Premium: $${input.premium}
-- Comprehensive Deductible: $${input.deductibleComp || 'Unknown'}
-- Collision Deductible: $${input.deductibleColl || 'Unknown'}
-- Bodily Injury Liability: ${input.liabilityBI || 'Unknown'}
-- Property Damage Liability: ${input.liabilityPD || 'Unknown'}
-- Vehicle: ${input.vehicleYear || ''} ${input.vehicleMake || 'Unknown'}
-
-Provide:
-1. A grade (A=excellent value, B=good, C=average, D=poor value)
-2. Estimated monthly savings if they shop around (realistic estimate $20-80 range)
-3. 2-3 key findings about their policy (what's good, what's concerning)
-4. 2-3 recommendations to improve their coverage or save money
-5. Coverage score (0-100): How good is their coverage?
-6. Price score (0-100): How competitive is their price?
-7. Overall score (0-100): Combined assessment
-
-Be helpful and specific. Use plain language a regular person would understand.`
-          }],
-          schema: snapshotAnalysisSchema,
-        });
-
-        const snapshot: PolicySnapshot = {
-          id: `snap_${Date.now()}`,
-          policyId: input.policyId,
-          grade: analysis.grade as SnapshotGrade,
-          monthlySavings: analysis.monthlySavings,
-          findings: analysis.findings,
-          recommendations: analysis.recommendations,
-          coverageScore: analysis.coverageScore,
-          priceScore: analysis.priceScore,
-          overallScore: analysis.overallScore,
-          createdAt: new Date().toISOString(),
-        };
-
-        console.log(`[SNAPSHOTS] AI generated snapshot: Grade ${snapshot.grade}, savings $${snapshot.monthlySavings}/mo`);
-        return db.createSnapshot(snapshot);
-      } catch (error) {
-        console.error('[SNAPSHOTS] AI generation failed, using fallback:', error);
-        
-        const fallbackSnapshot: PolicySnapshot = {
-          id: `snap_${Date.now()}`,
-          policyId: input.policyId,
-          grade: input.premium > 200 ? 'C' : 'B',
-          monthlySavings: Math.round(input.premium * 0.15 + Math.random() * 20),
-          findings: [
-            `You're paying $${input.premium}/month with ${input.carrier}`,
-            input.deductibleComp && input.deductibleComp >= 1000 
-              ? 'Your deductible is on the higher side, which lowers your premium'
-              : 'Your deductible seems reasonable for your coverage level',
-            'We found similar drivers paying less for comparable coverage',
-          ],
-          recommendations: [
-            'Consider bundling with home/renters insurance for 10-15% savings',
-            'Ask about safe driver or low mileage discounts',
-            'Compare quotes from at least 3 carriers before renewal',
-          ],
-          coverageScore: 70 + Math.round(Math.random() * 20),
-          priceScore: 50 + Math.round(Math.random() * 30),
-          overallScore: 60 + Math.round(Math.random() * 25),
-          createdAt: new Date().toISOString(),
-        };
-
-        return db.createSnapshot(fallbackSnapshot);
-      }
+      console.log(`[SNAPSHOTS] Generated snapshot: Grade ${snapshot.grade}, savings ${snapshot.monthlySavings}/mo`);
+      return db.createSnapshot(snapshot);
     }),
 
   get: publicProcedure
