@@ -3,7 +3,7 @@ import { usersRouter } from "./routes/users";
 import { policiesRouter, documentsRouter, remindersRouter, videoEvidenceRouter, accidentReportsRouter } from "./routes/policies";
 import { adminRouter } from "./routes/admin";
 import { snapshotsRouter, leadsRouter } from "./routes/snapshots";
-import { agentsRouter, agentLeadsRouter, leadOffersRouter } from "./routes/agents";
+import { agentsRouter, agentLeadsRouter, leadOffersRouter, agentApplicationsRouter } from "./routes/agents";
 import { subscriptionsRouter } from "./routes/subscriptions";
 import { intakeRouter } from "./routes/intake";
 import { assistantRouter } from "./routes/assistant";
@@ -23,6 +23,7 @@ export const appRouter = createTRPCRouter({
   agents: agentsRouter,
   agentLeads: agentLeadsRouter,
   leadOffers: leadOffersRouter,
+  agentApplications: agentApplicationsRouter,
   subscriptions: subscriptionsRouter,
   intake: intakeRouter,
   assistant: assistantRouter,

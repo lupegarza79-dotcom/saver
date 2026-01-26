@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure } from '../create-context';
 import { Agent, AgentLeadAssignment, LeadOffer } from '@/types';
 import { db } from '@/backend/db';
 import * as subscriptionStore from '../store/subscriptionStore';
+import { getSupabase } from '@/backend/supabase/client';
 
 const agents: Map<string, Agent> = new Map();
 const agentLeadAssignments: Map<string, AgentLeadAssignment> = new Map();
@@ -572,5 +573,46 @@ export const leadOffersRouter = createTRPCRouter({
       console.log(`[OFFERS] Lead ${input.leadId} chose offer ${input.offerId}`);
       
       return { lead: db.getLead(input.leadId), offer };
+    }),
+});
+
+export const agentApplicationsRouter = createTRPCRouter({
+  submit: publicProcedure
+    .input(z.object({
+      fullName: z.string().min(2),
+      phone: z.string().min(10),
+      email: z.string().email(),
+      licensed: z.boolean(),
+      states: z.string().min(1),
+      yearsOfExperience: z.string().min(1),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const supabase = getSupabase();
+      const now = new Date().toISOString();
+      const id = `app_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const { error } = await supabase
+        .from('agent_applications')
+        .insert({
+          id,
+          full_name: input.fullName,
+          phone: input.phone,
+          email: input.email,
+          licensed: input.licensed,
+          states: input.states,
+          years_of_experience: input.yearsOfExperience,
+          notes: input.notes || null,
+          created_at: now,
+        });
+      
+      if (error) {
+        console.error('[AGENT_APPLICATIONS] Error saving application:', error);
+        throw new Error('Failed to submit application');
+      }
+      
+      console.log(`[AGENT_APPLICATIONS] New application submitted: ${input.fullName} (${id})`);
+      
+      return { id, success: true };
     }),
 });

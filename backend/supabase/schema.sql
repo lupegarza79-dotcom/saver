@@ -196,3 +196,32 @@ FROM public.leads;
 -- Grant view access to service_role
 GRANT SELECT ON admin.lead_summary TO service_role;
 GRANT SELECT ON admin.intake_stats TO service_role;
+
+-- ============================================
+-- AGENT APPLICATIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS agent_applications (
+  id TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT NOT NULL,
+  licensed BOOLEAN NOT NULL,
+  states TEXT NOT NULL,
+  years_of_experience TEXT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for agent_applications
+CREATE INDEX IF NOT EXISTS idx_agent_applications_email ON agent_applications(email);
+CREATE INDEX IF NOT EXISTS idx_agent_applications_created_at ON agent_applications(created_at DESC);
+
+-- Enable RLS on agent_applications
+ALTER TABLE agent_applications ENABLE ROW LEVEL SECURITY;
+
+-- Agent applications policy
+CREATE POLICY "Service role can manage agent_applications" ON agent_applications
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
