@@ -36,7 +36,8 @@ export default function HomeScreen() {
     if (isEs) {
       return {
         title: "Ahorra en\nSeguro de Auto",
-        subtitle: "Sube tu póliza o responde unas preguntas.\nCotizaciones reales. Sin spam.\nGRATIS • FÁCIL • RÁPIDO",
+        subtitle: "Sube tu póliza o responde unas preguntas.\nCotizaciones reales. Sin spam.",
+        tagline: "GRATIS • FÁCIL • RÁPIDO",
         cta1: "Obtener Cotización",
         cta1Sub: "1–2 minutos",
         cta2: "Subir Póliza",
@@ -48,7 +49,8 @@ export default function HomeScreen() {
     }
     return {
       title: "Save on\nAuto Insurance",
-      subtitle: "Upload your policy or answer a few questions.\nGet real quotes. No spam.\nFREE • EASY • FAST",
+      subtitle: "Upload your policy or answer a few questions.\nGet real quotes. No spam.",
+      tagline: "FREE • EASY • FAST",
       cta1: "Get Quote",
       cta1Sub: "1–2 min",
       cta2: "Upload Policy",
@@ -131,6 +133,7 @@ export default function HomeScreen() {
       <View style={styles.content}>
         <Text style={styles.title}>{copy.title}</Text>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
+        <Text style={styles.tagline}>{copy.tagline}</Text>
 
         <View style={styles.ctaContainer}>
           <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: quoteScale }] }]}>
@@ -251,13 +254,24 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     letterSpacing: -0.5,
     marginBottom: 12,
+    textAlign: "center" as const,
   },
   subtitle: {
     color: "rgba(255,255,255,0.65)",
     fontSize: 16,
     lineHeight: 22,
     fontWeight: "500" as const,
+    marginBottom: 8,
+    textAlign: "center" as const,
+  },
+  tagline: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "700" as const,
+    letterSpacing: 2,
     marginBottom: 32,
+    textAlign: "center" as const,
   },
   ctaContainer: {
     gap: 14,
