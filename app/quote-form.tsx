@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,162 +8,58 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Animated,
   Alert,
-  Image,
-  FlatList,
+  ScrollView,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import {
-  Send,
-  Camera,
-  Image as ImageIcon,
-  X,
-} from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Check, Globe } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
-import { validateVin, validateDob } from '@/utils/quoteReadiness';
 import { trpc } from '@/lib/trpc';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  image?: string;
-}
+type WizardStep = 'phone' | 'name' | 'zip' | 'vehicleCount' | 'vin' | 'coverage';
 
-interface CollectedData {
-  phone?: string;
-  isMarried?: boolean;
-  spouseDriving?: boolean;
-  primaryDriverName?: string;
-  primaryDriverDob?: string;
-  spouseName?: string;
-  spouseDob?: string;
-  idUploaded?: boolean;
-  idType?: string;
-  vehicleCount?: number;
-  vehicles?: { vin: string; index: number }[];
-  coverageType?: 'minimum' | 'full';
-  collisionDeductible?: number;
-  compDeductible?: number;
-  zip?: string;
-  notifyOnlyIfCheaper?: boolean;
-  currentPremiumApprox?: number;
-  targetMonthly?: number;
-  targetSavings?: number;
+interface FormData {
+  phone: string;
+  fullName: string;
+  zip: string;
+  vehicleCount: number;
+  vins: string[];
+  coverage: 'liability' | 'full' | null;
 }
-
-type FlowStep =
-  | 'greeting'
-  | 'awaiting_phone'
-  | 'awaiting_name'
-  | 'awaiting_dob'
-  | 'awaiting_married'
-  | 'awaiting_spouse_driving'
-  | 'awaiting_spouse_name'
-  | 'awaiting_spouse_dob'
-  | 'awaiting_id_upload'
-  | 'awaiting_vehicle_count'
-  | 'awaiting_vin'
-  | 'awaiting_zip'
-  | 'awaiting_coverage_type'
-  | 'awaiting_collision_deductible'
-  | 'awaiting_comp_deductible'
-  | 'awaiting_price_gate'
-  | 'awaiting_current_premium'
-  | 'awaiting_target_price'
-  | 'awaiting_confirmation'
-  | 'complete';
 
 const COLORS = {
   background: '#FFFFFF',
-  surface: '#F9FAFB',
-  text: '#111111',
-  textSecondary: '#6B7280',
-  border: '#E5E7EB',
-  primary: '#1275FF',
-  primaryLight: '#E8F2FF',
-  userBubble: '#1275FF',
-  botBubble: '#F3F4F6',
+  surface: '#F8FAFC',
+  text: '#0F172A',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+  primary: '#2563EB',
+  primaryLight: '#EFF6FF',
+  error: '#EF4444',
+  errorLight: '#FEF2F2',
+  success: '#10B981',
 };
 
-function TypingIndicator() {
-  const dotAnim1 = useRef(new Animated.Value(0.4)).current;
-  const dotAnim2 = useRef(new Animated.Value(0.4)).current;
-  const dotAnim3 = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    const animate = (anim: Animated.Value, delay: number) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0.4, duration: 300, useNativeDriver: true }),
-        ])
-      ).start();
-    };
-    animate(dotAnim1, 0);
-    animate(dotAnim2, 150);
-    animate(dotAnim3, 300);
-  }, [dotAnim1, dotAnim2, dotAnim3]);
-
-  return (
-    <View style={[styles.row, styles.rowLeft]}>
-      <View style={[styles.bubble, styles.botBubble]}>
-        <View style={styles.typingContainer}>
-          {[dotAnim1, dotAnim2, dotAnim3].map((anim, i) => (
-            <Animated.View
-              key={i}
-              style={[styles.typingDot, { opacity: anim }]}
-            />
-          ))}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function MessageBubble({ role, text, image }: { role: 'user' | 'assistant'; text: string; image?: string }) {
-  const isUser = role === 'user';
-  return (
-    <View style={[styles.row, isUser ? styles.rowRight : styles.rowLeft]}>
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
-        {image && (
-          <Image source={{ uri: image }} style={styles.bubbleImage} resizeMode="cover" />
-        )}
-        <Text style={[styles.bubbleText, isUser ? styles.userText : styles.botText]}>{text}</Text>
-      </View>
-    </View>
-  );
-}
-
 export default function QuoteFormScreen() {
-  const { language, setConsentGiven, user } = useApp();
+  const { language, setLanguage, setConsentGiven, user } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList>(null);
-  
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [flowStep, setFlowStep] = useState<FlowStep>('greeting');
-  const [isTyping, setIsTyping] = useState(false);
-  const [showIdUpload, setShowIdUpload] = useState(false);
-  const [currentVinIndex, setCurrentVinIndex] = useState(0);
-  const [isProcessing] = useState(false);
-  
-  const collectedData = useRef<CollectedData>({});
 
-  const submitIntakeMutation = trpc.intake.submit.useMutation({
-    onSuccess: (data) => {
-      console.log('[QUOTE_FORM] Intake submitted:', data.status);
-    },
-    onError: (error) => {
-      console.error('[QUOTE_FORM] Intake error:', error);
-    },
+  const [step, setStep] = useState<WizardStep>('phone');
+  const [currentVinIndex, setCurrentVinIndex] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState<FormData>({
+    phone: '',
+    fullName: '',
+    zip: '',
+    vehicleCount: 1,
+    vins: [],
+    coverage: null,
   });
+  const [error, setError] = useState('');
 
   const isEs = language === 'es';
 
@@ -171,410 +67,468 @@ export default function QuoteFormScreen() {
     if (isEs) {
       return {
         headerTitle: 'Obtener Cotización',
-        greeting: '¡Hola! Soy tu asistente de seguros. Te ayudaré a obtener cotizaciones de auto. Empecemos con tu número de teléfono.',
-        askPhone: '¿Cuál es tu número de teléfono? (10 dígitos)',
-        askName: '¿Cuál es tu nombre completo?',
-        askDob: '¿Cuál es tu fecha de nacimiento? (MM/DD/AAAA)',
-        askMarried: '¿Estás casado/a? (Sí/No)',
-        askSpouseDriving: '¿Tu esposo/a manejará el vehículo? (Sí/No)',
-        askSpouseName: '¿Cuál es el nombre de tu esposo/a?',
-        askSpouseDob: '¿Cuál es la fecha de nacimiento de tu esposo/a? (MM/DD/AAAA)',
-        askIdUpload: 'Por favor sube una foto de tu licencia de conducir.',
-        askVehicleCount: '¿Cuántos vehículos quieres asegurar?',
-        askVin: (i: number) => `¿Cuál es el VIN del vehículo ${i + 1}? (17 caracteres)`,
-        askZip: '¿Cuál es tu código postal donde guardas el auto?',
-        askCoverage: '¿Qué tipo de cobertura prefieres?\n1. Mínima (solo responsabilidad)\n2. Completa (colisión + comprensiva)',
-        askCollisionDeductible: '¿Cuál deducible de colisión prefieres?\n1. $500\n2. $1000\n3. $2000',
-        askCompDeductible: '¿Cuál deducible comprensivo prefieres?\n1. $500\n2. $1000\n3. $2000',
-        askPriceGate: '¿Solo quieres que te notifiquemos si encontramos un precio más bajo? (Sí/No)',
-        askCurrentPremium: '¿Cuánto pagas actualmente al mes (aproximado)?',
-        askTargetPrice: '¿Cuánto te gustaría pagar al mes?',
-        confirmation: '¡Gracias! Hemos recibido tu información. Un agente te contactará pronto con cotizaciones.',
-        invalidPhone: 'Por favor ingresa un número de teléfono válido de 10 dígitos.',
-        invalidDob: 'Por favor ingresa una fecha válida (MM/DD/AAAA).',
-        invalidVin: 'El VIN debe tener exactamente 17 caracteres.',
-        invalidZip: 'Por favor ingresa un código postal válido de 5 dígitos.',
-        placeholder: 'Escribe tu respuesta...',
-        send: 'Enviar',
+        back: 'Atrás',
+        next: 'Siguiente',
+        submit: 'Enviar',
+        stepOf: 'de',
+        phoneTitle: '¿Cuál es tu teléfono?',
+        phoneSubtitle: 'Te contactaremos por WhatsApp o texto.',
+        phonePlaceholder: '(555) 123-4567',
+        phoneError: 'Ingresa un número de 10 dígitos',
+        nameTitle: '¿Cuál es tu nombre completo?',
+        nameSubtitle: 'Como aparece en tu licencia de conducir.',
+        namePlaceholder: 'Juan Pérez',
+        nameError: 'Ingresa tu nombre completo',
+        zipTitle: '¿Cuál es tu código postal?',
+        zipSubtitle: 'Donde guardas tu vehículo.',
+        zipPlaceholder: '78501',
+        zipError: 'Ingresa un código postal de 5 dígitos',
+        vehicleCountTitle: '¿Cuántos vehículos?',
+        vehicleCountSubtitle: 'Selecciona el número de vehículos a asegurar.',
+        vinTitle: (i: number, total: number) => `VIN del vehículo ${i + 1} de ${total}`,
+        vinSubtitle: 'Encuentra el VIN en tu tablero o puerta.',
+        vinPlaceholder: '1HGBH41JXMN109186',
+        vinError: 'El VIN debe tener 17 caracteres',
+        vinDuplicateError: 'Este VIN ya fue ingresado',
+        coverageTitle: '¿Qué cobertura prefieres?',
+        coverageSubtitle: 'Elige el tipo de protección.',
+        liabilityOnly: 'Solo Responsabilidad',
+        liabilityDesc: 'Cobertura mínima requerida por ley (30/60/25)',
+        fullCoverage: 'Cobertura Completa',
+        fullDesc: 'Incluye colisión y comprensivo',
+        submitting: 'Enviando...',
+        submitError: 'Error al enviar. Intenta de nuevo.',
       };
     }
     return {
       headerTitle: 'Get a Quote',
-      greeting: "Hi! I'm your insurance assistant. I'll help you get auto insurance quotes. Let's start with your phone number.",
-      askPhone: 'What is your phone number? (10 digits)',
-      askName: 'What is your full name?',
-      askDob: 'What is your date of birth? (MM/DD/YYYY)',
-      askMarried: 'Are you married? (Yes/No)',
-      askSpouseDriving: 'Will your spouse be driving the vehicle? (Yes/No)',
-      askSpouseName: "What is your spouse's name?",
-      askSpouseDob: "What is your spouse's date of birth? (MM/DD/YYYY)",
-      askIdUpload: 'Please upload a photo of your driver\'s license.',
-      askVehicleCount: 'How many vehicles do you want to insure?',
-      askVin: (i: number) => `What is the VIN of vehicle ${i + 1}? (17 characters)`,
-      askZip: 'What is your ZIP code where you park the car?',
-      askCoverage: 'What type of coverage do you prefer?\n1. Minimum (liability only)\n2. Full (collision + comprehensive)',
-      askCollisionDeductible: 'What collision deductible do you prefer?\n1. $500\n2. $1000\n3. $2000',
-      askCompDeductible: 'What comprehensive deductible do you prefer?\n1. $500\n2. $1000\n3. $2000',
-      askPriceGate: 'Only notify you if we find a lower price? (Yes/No)',
-      askCurrentPremium: 'How much do you currently pay per month (approximately)?',
-      askTargetPrice: 'How much would you like to pay per month?',
-      confirmation: "Thank you! We've received your information. An agent will contact you soon with quotes.",
-      invalidPhone: 'Please enter a valid 10-digit phone number.',
-      invalidDob: 'Please enter a valid date (MM/DD/YYYY).',
-      invalidVin: 'VIN must be exactly 17 characters.',
-      invalidZip: 'Please enter a valid 5-digit ZIP code.',
-      placeholder: 'Type your answer...',
-      send: 'Send',
+      back: 'Back',
+      next: 'Next',
+      submit: 'Submit',
+      stepOf: 'of',
+      phoneTitle: "What's your phone number?",
+      phoneSubtitle: "We'll contact you via WhatsApp or text.",
+      phonePlaceholder: '(555) 123-4567',
+      phoneError: 'Enter a valid 10-digit number',
+      nameTitle: "What's your full name?",
+      nameSubtitle: 'As it appears on your driver\'s license.',
+      namePlaceholder: 'John Smith',
+      nameError: 'Enter your full name',
+      zipTitle: "What's your ZIP code?",
+      zipSubtitle: 'Where you park your vehicle.',
+      zipPlaceholder: '78501',
+      zipError: 'Enter a valid 5-digit ZIP code',
+      vehicleCountTitle: 'How many vehicles?',
+      vehicleCountSubtitle: 'Select the number of vehicles to insure.',
+      vinTitle: (i: number, total: number) => `VIN for vehicle ${i + 1} of ${total}`,
+      vinSubtitle: 'Find your VIN on the dashboard or door jamb.',
+      vinPlaceholder: '1HGBH41JXMN109186',
+      vinError: 'VIN must be exactly 17 characters',
+      vinDuplicateError: 'This VIN was already entered',
+      coverageTitle: 'What coverage do you prefer?',
+      coverageSubtitle: 'Choose your level of protection.',
+      liabilityOnly: 'Liability Only',
+      liabilityDesc: 'Minimum coverage required by law (30/60/25)',
+      fullCoverage: 'Full Coverage',
+      fullDesc: 'Includes collision and comprehensive',
+      submitting: 'Submitting...',
+      submitError: 'Failed to submit. Please try again.',
     };
   }, [isEs]);
 
-  const addBotMessage = useCallback((text: string) => {
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => [...prev, {
-        id: `msg_${Date.now()}`,
-        role: 'assistant',
-        text,
-      }]);
-    }, 800);
-  }, []);
-
-  const addUserMessage = useCallback((text: string, image?: string) => {
-    setMessages(prev => [...prev, {
-      id: `msg_${Date.now()}`,
-      role: 'user',
-      text,
-      image,
-    }]);
-  }, []);
-
-  useEffect(() => {
-    if (flowStep === 'greeting') {
-      addBotMessage(copy.greeting);
-      setTimeout(() => {
-        addBotMessage(copy.askPhone);
-        setFlowStep('awaiting_phone');
-      }, 1500);
-    }
-  }, [flowStep, copy, addBotMessage]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => {
-        listRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [messages, isTyping]);
-
-  const handleSubmit = useCallback(async () => {
-    const data = collectedData.current;
-    
-    try {
-      await submitIntakeMutation.mutateAsync({
-        userId: user?.id || `user_${Date.now()}`,
-        intake: {
-          phone: data.phone,
-          insuredFullName: data.primaryDriverName,
-          garagingAddress: { zip: data.zip, state: 'TX' },
-          contactPreference: 'whatsapp',
-          language: language === 'es' ? 'es' : 'en',
-          consentContactAllowed: true,
-          drivers: [
-            ...(data.primaryDriverName ? [{
-              fullName: data.primaryDriverName,
-              dob: data.primaryDriverDob,
-            }] : []),
-            ...(data.spouseName ? [{
-              fullName: data.spouseName,
-              dob: data.spouseDob,
-            }] : []),
-          ],
-          vehicles: (data.vehicles || []).map(v => ({ vin: v.vin })),
-          coverageType: data.coverageType,
-          collisionDeductible: data.collisionDeductible,
-          compDeductible: data.compDeductible,
-          currentPremium: data.currentPremiumApprox,
-        },
-      });
-      
+  const submitIntakeMutation = trpc.intake.submit.useMutation({
+    onSuccess: () => {
+      console.log('[QUOTE_FORM] Lead submitted successfully');
       setConsentGiven(true);
       router.push('/quote-submitted');
-    } catch (error) {
-      console.error('[QUOTE_FORM] Submit error:', error);
-      Alert.alert(
-        isEs ? 'Error' : 'Error',
-        isEs ? 'No pudimos enviar tu información. Intenta de nuevo.' : 'We couldn\'t submit your information. Please try again.'
-      );
-    }
-  }, [user, language, isEs, submitIntakeMutation, setConsentGiven, router]);
+    },
+    onError: (err) => {
+      console.error('[QUOTE_FORM] Submit error:', err);
+      setIsSubmitting(false);
+      Alert.alert(isEs ? 'Error' : 'Error', copy.submitError);
+    },
+  });
 
-  const processUserInput = useCallback((text: string) => {
-    const trimmed = text.trim();
-    addUserMessage(trimmed);
+  const steps = useMemo<WizardStep[]>(() => ['phone', 'name', 'zip', 'vehicleCount', 'vin', 'coverage'], []);
+  const currentStepIndex = steps.indexOf(step);
+  const totalSteps = steps.length;
+
+  const toggleLanguage = useCallback(() => {
+    setLanguage(isEs ? 'en' : 'es');
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, [isEs, setLanguage]);
+
+  const validateCurrentStep = useCallback((): boolean => {
+    setError('');
+
+    switch (step) {
+      case 'phone': {
+        const digits = formData.phone.replace(/\D/g, '');
+        if (digits.length !== 10) {
+          setError(copy.phoneError);
+          return false;
+        }
+        return true;
+      }
+      case 'name': {
+        if (formData.fullName.trim().length < 2) {
+          setError(copy.nameError);
+          return false;
+        }
+        return true;
+      }
+      case 'zip': {
+        const zipDigits = formData.zip.replace(/\D/g, '');
+        if (zipDigits.length !== 5) {
+          setError(copy.zipError);
+          return false;
+        }
+        return true;
+      }
+      case 'vehicleCount':
+        return formData.vehicleCount >= 1 && formData.vehicleCount <= 3;
+      case 'vin': {
+        const currentVin = formData.vins[currentVinIndex] || '';
+        const cleanVin = currentVin.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (cleanVin.length !== 17) {
+          setError(copy.vinError);
+          return false;
+        }
+        const otherVins = formData.vins.filter((_, i) => i !== currentVinIndex);
+        if (otherVins.includes(cleanVin)) {
+          setError(copy.vinDuplicateError);
+          return false;
+        }
+        return true;
+      }
+      case 'coverage':
+        return formData.coverage !== null;
+      default:
+        return true;
+    }
+  }, [step, formData, currentVinIndex, copy]);
+
+  const goNext = useCallback(() => {
+    if (!validateCurrentStep()) return;
 
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    switch (flowStep) {
-      case 'awaiting_phone': {
-        const digits = trimmed.replace(/\D/g, '');
-        if (digits.length === 10) {
-          collectedData.current.phone = digits;
-          addBotMessage(copy.askName);
-          setFlowStep('awaiting_name');
-        } else {
-          addBotMessage(copy.invalidPhone);
-        }
-        break;
+    if (step === 'vin') {
+      const cleanVin = (formData.vins[currentVinIndex] || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const updatedVins = [...formData.vins];
+      updatedVins[currentVinIndex] = cleanVin;
+      setFormData(prev => ({ ...prev, vins: updatedVins }));
+
+      if (currentVinIndex < formData.vehicleCount - 1) {
+        setCurrentVinIndex(currentVinIndex + 1);
+        return;
       }
-      case 'awaiting_name': {
-        if (trimmed.length >= 2) {
-          collectedData.current.primaryDriverName = trimmed;
-          addBotMessage(copy.askDob);
-          setFlowStep('awaiting_dob');
-        }
-        break;
-      }
-      case 'awaiting_dob': {
-        if (validateDob(trimmed)) {
-          collectedData.current.primaryDriverDob = trimmed;
-          addBotMessage(copy.askMarried);
-          setFlowStep('awaiting_married');
-        } else {
-          addBotMessage(copy.invalidDob);
-        }
-        break;
-      }
-      case 'awaiting_married': {
-        const yes = isEs ? ['si', 'sí', 's'] : ['yes', 'y'];
-        const no = isEs ? ['no', 'n'] : ['no', 'n'];
-        const lower = trimmed.toLowerCase();
-        if (yes.some(y => lower.includes(y))) {
-          collectedData.current.isMarried = true;
-          addBotMessage(copy.askSpouseDriving);
-          setFlowStep('awaiting_spouse_driving');
-        } else if (no.some(n => lower === n)) {
-          collectedData.current.isMarried = false;
-          addBotMessage(copy.askIdUpload);
-          setFlowStep('awaiting_id_upload');
-          setShowIdUpload(true);
-        }
-        break;
-      }
-      case 'awaiting_spouse_driving': {
-        const yes = isEs ? ['si', 'sí', 's'] : ['yes', 'y'];
-        const no = isEs ? ['no', 'n'] : ['no', 'n'];
-        const lower = trimmed.toLowerCase();
-        if (yes.some(y => lower.includes(y))) {
-          collectedData.current.spouseDriving = true;
-          addBotMessage(copy.askSpouseName);
-          setFlowStep('awaiting_spouse_name');
-        } else if (no.some(n => lower === n)) {
-          collectedData.current.spouseDriving = false;
-          addBotMessage(copy.askIdUpload);
-          setFlowStep('awaiting_id_upload');
-          setShowIdUpload(true);
-        }
-        break;
-      }
-      case 'awaiting_spouse_name': {
-        if (trimmed.length >= 2) {
-          collectedData.current.spouseName = trimmed;
-          addBotMessage(copy.askSpouseDob);
-          setFlowStep('awaiting_spouse_dob');
-        }
-        break;
-      }
-      case 'awaiting_spouse_dob': {
-        if (validateDob(trimmed)) {
-          collectedData.current.spouseDob = trimmed;
-          addBotMessage(copy.askIdUpload);
-          setFlowStep('awaiting_id_upload');
-          setShowIdUpload(true);
-        } else {
-          addBotMessage(copy.invalidDob);
-        }
-        break;
-      }
-      case 'awaiting_id_upload': {
-        addBotMessage(copy.askVehicleCount);
-        setFlowStep('awaiting_vehicle_count');
-        setShowIdUpload(false);
-        break;
-      }
-      case 'awaiting_vehicle_count': {
-        const count = parseInt(trimmed, 10);
-        if (count >= 1 && count <= 5) {
-          collectedData.current.vehicleCount = count;
-          collectedData.current.vehicles = [];
-          addBotMessage(copy.askVin(0));
-          setFlowStep('awaiting_vin');
-          setCurrentVinIndex(0);
-        }
-        break;
-      }
-      case 'awaiting_vin': {
-        const vin = trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (validateVin(vin)) {
-          collectedData.current.vehicles = collectedData.current.vehicles || [];
-          collectedData.current.vehicles.push({ vin, index: currentVinIndex });
-          const nextIndex = currentVinIndex + 1;
-          if (nextIndex < (collectedData.current.vehicleCount || 1)) {
-            setCurrentVinIndex(nextIndex);
-            addBotMessage(copy.askVin(nextIndex));
-          } else {
-            addBotMessage(copy.askZip);
-            setFlowStep('awaiting_zip');
-          }
-        } else {
-          addBotMessage(copy.invalidVin);
-        }
-        break;
-      }
-      case 'awaiting_zip': {
-        const zip = trimmed.replace(/\D/g, '');
-        if (zip.length === 5) {
-          collectedData.current.zip = zip;
-          addBotMessage(copy.askCoverage);
-          setFlowStep('awaiting_coverage_type');
-        } else {
-          addBotMessage(copy.invalidZip);
-        }
-        break;
-      }
-      case 'awaiting_coverage_type': {
-        const lower = trimmed.toLowerCase();
-        if (lower.includes('1') || lower.includes('min')) {
-          collectedData.current.coverageType = 'minimum';
-          addBotMessage(copy.askPriceGate);
-          setFlowStep('awaiting_price_gate');
-        } else if (lower.includes('2') || lower.includes('full') || lower.includes('compl')) {
-          collectedData.current.coverageType = 'full';
-          addBotMessage(copy.askCollisionDeductible);
-          setFlowStep('awaiting_collision_deductible');
-        }
-        break;
-      }
-      case 'awaiting_collision_deductible': {
-        if (trimmed.includes('1') || trimmed.includes('500')) {
-          collectedData.current.collisionDeductible = 500;
-        } else if (trimmed.includes('2') || trimmed.includes('1000')) {
-          collectedData.current.collisionDeductible = 1000;
-        } else if (trimmed.includes('3') || trimmed.includes('2000')) {
-          collectedData.current.collisionDeductible = 2000;
-        }
-        if (collectedData.current.collisionDeductible) {
-          addBotMessage(copy.askCompDeductible);
-          setFlowStep('awaiting_comp_deductible');
-        }
-        break;
-      }
-      case 'awaiting_comp_deductible': {
-        if (trimmed.includes('1') || trimmed.includes('500')) {
-          collectedData.current.compDeductible = 500;
-        } else if (trimmed.includes('2') || trimmed.includes('1000')) {
-          collectedData.current.compDeductible = 1000;
-        } else if (trimmed.includes('3') || trimmed.includes('2000')) {
-          collectedData.current.compDeductible = 2000;
-        }
-        if (collectedData.current.compDeductible) {
-          addBotMessage(copy.askPriceGate);
-          setFlowStep('awaiting_price_gate');
-        }
-        break;
-      }
-      case 'awaiting_price_gate': {
-        const yes = isEs ? ['si', 'sí', 's'] : ['yes', 'y'];
-        const lower = trimmed.toLowerCase();
-        if (yes.some(y => lower.includes(y))) {
-          collectedData.current.notifyOnlyIfCheaper = true;
-          addBotMessage(copy.askCurrentPremium);
-          setFlowStep('awaiting_current_premium');
-        } else {
-          collectedData.current.notifyOnlyIfCheaper = false;
-          addBotMessage(copy.confirmation);
-          setFlowStep('complete');
-          handleSubmit();
-        }
-        break;
-      }
-      case 'awaiting_current_premium': {
-        const num = parseInt(trimmed.replace(/\D/g, ''), 10);
-        if (num > 0) {
-          collectedData.current.currentPremiumApprox = num;
-          addBotMessage(copy.askTargetPrice);
-          setFlowStep('awaiting_target_price');
-        }
-        break;
-      }
-      case 'awaiting_target_price': {
-        const num = parseInt(trimmed.replace(/\D/g, ''), 10);
-        if (num > 0) {
-          collectedData.current.targetMonthly = num;
-          addBotMessage(copy.confirmation);
-          setFlowStep('complete');
-          handleSubmit();
-        }
-        break;
-      }
-      default:
-        break;
     }
-  }, [flowStep, copy, isEs, addBotMessage, addUserMessage, currentVinIndex, handleSubmit]);
 
-  const handleSend = useCallback(() => {
-    if (!input.trim() || isProcessing) return;
-    const text = input.trim();
-    setInput('');
-    processUserInput(text);
-  }, [input, isProcessing, processUserInput]);
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < steps.length) {
+      setStep(steps[nextIndex]);
+      setError('');
+    }
+  }, [step, currentStepIndex, steps, formData, currentVinIndex, validateCurrentStep]);
 
-  const handleIdUpload = useCallback(async (source: 'camera' | 'library') => {
-    
+  const goBack = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (step === 'vin' && currentVinIndex > 0) {
+      setCurrentVinIndex(currentVinIndex - 1);
+      setError('');
+      return;
+    }
+
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      setStep(steps[prevIndex]);
+      setError('');
+      if (steps[prevIndex] === 'vin') {
+        setCurrentVinIndex(formData.vehicleCount - 1);
+      }
+    } else {
+      router.back();
+    }
+  }, [step, currentStepIndex, steps, currentVinIndex, formData.vehicleCount, router]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!validateCurrentStep()) return;
+
+    setIsSubmitting(true);
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
     try {
-      let result;
-      if (source === 'camera') {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert(
-            isEs ? 'Permiso requerido' : 'Permission needed',
-            isEs ? 'Se necesita acceso a la cámara' : 'Camera access is required'
-          );
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ['images'],
-          quality: 0.8,
-        });
-      } else {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert(
-            isEs ? 'Permiso requerido' : 'Permission needed',
-            isEs ? 'Se necesita acceso a las fotos' : 'Photo library access is required'
-          );
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          quality: 0.8,
-        });
-      }
-
-      if (!result.canceled && result.assets[0]) {
-        collectedData.current.idUploaded = true;
-        collectedData.current.idType = 'license';
-        addUserMessage(isEs ? 'Licencia subida' : 'License uploaded', result.assets[0].uri);
-        setShowIdUpload(false);
-        addBotMessage(copy.askVehicleCount);
-        setFlowStep('awaiting_vehicle_count');
-      }
-    } catch (error) {
-      console.error('[QUOTE_FORM] Image picker error:', error);
+      await submitIntakeMutation.mutateAsync({
+        userId: user?.id || `user_${Date.now()}`,
+        intake: {
+          phone: formData.phone.replace(/\D/g, ''),
+          insuredFullName: formData.fullName.trim(),
+          garagingAddress: { zip: formData.zip.replace(/\D/g, ''), state: 'TX' },
+          contactPreference: 'whatsapp',
+          language: isEs ? 'es' : 'en',
+          consentContactAllowed: true,
+          vehicles: formData.vins.map(vin => ({ vin })),
+          coverageType: formData.coverage === 'liability' ? 'minimum' : 'full',
+        },
+      });
+    } catch (err) {
+      console.error('[QUOTE_FORM] Submit failed:', err);
     }
-  }, [isEs, addUserMessage, addBotMessage, copy]);
+  }, [formData, isEs, user, submitIntakeMutation, validateCurrentStep]);
+
+  const updateVin = useCallback((text: string) => {
+    const updatedVins = [...formData.vins];
+    updatedVins[currentVinIndex] = text.toUpperCase();
+    setFormData(prev => ({ ...prev, vins: updatedVins }));
+    setError('');
+  }, [currentVinIndex, formData.vins]);
+
+  const renderStepContent = () => {
+    switch (step) {
+      case 'phone':
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{copy.phoneTitle}</Text>
+            <Text style={styles.stepSubtitle}>{copy.phoneSubtitle}</Text>
+            <TextInput
+              style={[styles.input, error ? styles.inputError : null]}
+              placeholder={copy.phonePlaceholder}
+              placeholderTextColor={COLORS.textMuted}
+              value={formData.phone}
+              onChangeText={(text) => {
+                setFormData(prev => ({ ...prev, phone: text }));
+                setError('');
+              }}
+              keyboardType="phone-pad"
+              autoFocus
+              testID="phone-input"
+            />
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
+        );
+
+      case 'name':
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{copy.nameTitle}</Text>
+            <Text style={styles.stepSubtitle}>{copy.nameSubtitle}</Text>
+            <TextInput
+              style={[styles.input, error ? styles.inputError : null]}
+              placeholder={copy.namePlaceholder}
+              placeholderTextColor={COLORS.textMuted}
+              value={formData.fullName}
+              onChangeText={(text) => {
+                setFormData(prev => ({ ...prev, fullName: text }));
+                setError('');
+              }}
+              autoCapitalize="words"
+              autoFocus
+              testID="name-input"
+            />
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
+        );
+
+      case 'zip':
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{copy.zipTitle}</Text>
+            <Text style={styles.stepSubtitle}>{copy.zipSubtitle}</Text>
+            <TextInput
+              style={[styles.input, error ? styles.inputError : null]}
+              placeholder={copy.zipPlaceholder}
+              placeholderTextColor={COLORS.textMuted}
+              value={formData.zip}
+              onChangeText={(text) => {
+                setFormData(prev => ({ ...prev, zip: text.replace(/\D/g, '').slice(0, 5) }));
+                setError('');
+              }}
+              keyboardType="number-pad"
+              maxLength={5}
+              autoFocus
+              testID="zip-input"
+            />
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
+        );
+
+      case 'vehicleCount':
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{copy.vehicleCountTitle}</Text>
+            <Text style={styles.stepSubtitle}>{copy.vehicleCountSubtitle}</Text>
+            <View style={styles.countSelector}>
+              {[1, 2, 3].map((count) => (
+                <Pressable
+                  key={count}
+                  style={[
+                    styles.countOption,
+                    formData.vehicleCount === count && styles.countOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      vehicleCount: count,
+                      vins: prev.vins.slice(0, count),
+                    }));
+                    if (Platform.OS !== 'web') {
+                      Haptics.selectionAsync();
+                    }
+                  }}
+                  testID={`vehicle-count-${count}`}
+                >
+                  <Text
+                    style={[
+                      styles.countText,
+                      formData.vehicleCount === count && styles.countTextSelected,
+                    ]}
+                  >
+                    {count}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        );
+
+      case 'vin':
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>
+              {copy.vinTitle(currentVinIndex, formData.vehicleCount)}
+            </Text>
+            <Text style={styles.stepSubtitle}>{copy.vinSubtitle}</Text>
+            <TextInput
+              style={[styles.input, styles.vinInput, error ? styles.inputError : null]}
+              placeholder={copy.vinPlaceholder}
+              placeholderTextColor={COLORS.textMuted}
+              value={formData.vins[currentVinIndex] || ''}
+              onChangeText={updateVin}
+              autoCapitalize="characters"
+              maxLength={17}
+              autoFocus
+              testID={`vin-input-${currentVinIndex}`}
+            />
+            <Text style={styles.vinCounter}>
+              {(formData.vins[currentVinIndex] || '').replace(/[^A-Z0-9]/gi, '').length}/17
+            </Text>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </View>
+        );
+
+      case 'coverage':
+        return (
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>{copy.coverageTitle}</Text>
+            <Text style={styles.stepSubtitle}>{copy.coverageSubtitle}</Text>
+            <View style={styles.coverageOptions}>
+              <Pressable
+                style={[
+                  styles.coverageCard,
+                  formData.coverage === 'liability' && styles.coverageCardSelected,
+                ]}
+                onPress={() => {
+                  setFormData(prev => ({ ...prev, coverage: 'liability' }));
+                  if (Platform.OS !== 'web') {
+                    Haptics.selectionAsync();
+                  }
+                }}
+                testID="coverage-liability"
+              >
+                <View style={styles.coverageHeader}>
+                  <Text
+                    style={[
+                      styles.coverageTitle,
+                      formData.coverage === 'liability' && styles.coverageTitleSelected,
+                    ]}
+                  >
+                    {copy.liabilityOnly}
+                  </Text>
+                  {formData.coverage === 'liability' && (
+                    <View style={styles.checkCircle}>
+                      <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.coverageDesc}>{copy.liabilityDesc}</Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.coverageCard,
+                  formData.coverage === 'full' && styles.coverageCardSelected,
+                ]}
+                onPress={() => {
+                  setFormData(prev => ({ ...prev, coverage: 'full' }));
+                  if (Platform.OS !== 'web') {
+                    Haptics.selectionAsync();
+                  }
+                }}
+                testID="coverage-full"
+              >
+                <View style={styles.coverageHeader}>
+                  <Text
+                    style={[
+                      styles.coverageTitle,
+                      formData.coverage === 'full' && styles.coverageTitleSelected,
+                    ]}
+                  >
+                    {copy.fullCoverage}
+                  </Text>
+                  {formData.coverage === 'full' && (
+                    <View style={styles.checkCircle}>
+                      <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.coverageDesc}>{copy.fullDesc}</Text>
+              </Pressable>
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const isLastStep = step === 'coverage';
+  const canProceed = (() => {
+    switch (step) {
+      case 'phone':
+        return formData.phone.replace(/\D/g, '').length === 10;
+      case 'name':
+        return formData.fullName.trim().length >= 2;
+      case 'zip':
+        return formData.zip.replace(/\D/g, '').length === 5;
+      case 'vehicleCount':
+        return true;
+      case 'vin':
+        return (formData.vins[currentVinIndex] || '').replace(/[^A-Z0-9]/gi, '').length === 17;
+      case 'coverage':
+        return formData.coverage !== null;
+      default:
+        return false;
+    }
+  })();
+
+  const getProgress = () => {
+    let progress = currentStepIndex;
+    if (step === 'vin') {
+      progress = currentStepIndex + (currentVinIndex / formData.vehicleCount);
+    }
+    return (progress + 1) / totalSteps;
+  };
 
   return (
     <View style={styles.container}>
@@ -582,76 +536,67 @@ export default function QuoteFormScreen() {
         options={{
           headerShown: true,
           title: copy.headerTitle,
-          headerBackTitle: isEs ? 'Atrás' : 'Back',
+          headerBackTitle: copy.back,
+          headerRight: () => (
+            <Pressable onPress={toggleLanguage} style={styles.langButton} hitSlop={8}>
+              <Globe size={18} color={COLORS.primary} />
+              <Text style={styles.langText}>{isEs ? 'EN' : 'ES'}</Text>
+            </Pressable>
+          ),
         }}
       />
 
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <MessageBubble role={item.role} text={item.text} image={item.image} />
-        )}
-        contentContainerStyle={[styles.messageList, { paddingBottom: insets.bottom + 100 }]}
-        ListFooterComponent={isTyping ? <TypingIndicator /> : null}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {showIdUpload && (
-        <View style={styles.uploadBar}>
-          <Pressable
-            style={styles.uploadOption}
-            onPress={() => handleIdUpload('camera')}
-          >
-            <Camera size={24} color={COLORS.primary} />
-            <Text style={styles.uploadOptionText}>{isEs ? 'Cámara' : 'Camera'}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.uploadOption}
-            onPress={() => handleIdUpload('library')}
-          >
-            <ImageIcon size={24} color={COLORS.primary} />
-            <Text style={styles.uploadOptionText}>{isEs ? 'Galería' : 'Gallery'}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.uploadOption}
-            onPress={() => {
-              setShowIdUpload(false);
-              processUserInput('skip');
-            }}
-          >
-            <X size={24} color={COLORS.textSecondary} />
-            <Text style={styles.uploadOptionText}>{isEs ? 'Saltar' : 'Skip'}</Text>
-          </Pressable>
+      <View style={styles.progressContainer}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${getProgress() * 100}%` }]} />
         </View>
-      )}
+        <Text style={styles.progressText}>
+          {currentStepIndex + 1} {copy.stepOf} {totalSteps}
+        </Text>
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        style={styles.flex}
+        keyboardVerticalOffset={100}
       >
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            placeholder={copy.placeholder}
-            placeholderTextColor={COLORS.textSecondary}
-            value={input}
-            onChangeText={setInput}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            editable={flowStep !== 'complete' && flowStep !== 'greeting'}
-          />
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {renderStepContent()}
+        </ScrollView>
+
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <Pressable
-            style={[styles.sendButton, (!input.trim() || flowStep === 'complete') && styles.sendButtonDisabled]}
-            onPress={handleSend}
-            disabled={!input.trim() || flowStep === 'complete'}
+            style={styles.backButton}
+            onPress={goBack}
+            testID="back-button"
           >
-            {isProcessing ? (
+            <ChevronLeft size={20} color={COLORS.textSecondary} />
+            <Text style={styles.backButtonText}>{copy.back}</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.nextButton,
+              !canProceed && styles.nextButtonDisabled,
+            ]}
+            onPress={isLastStep ? handleSubmit : goNext}
+            disabled={!canProceed || isSubmitting}
+            testID="next-button"
+          >
+            {isSubmitting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Send size={20} color="#FFFFFF" />
+              <>
+                <Text style={styles.nextButtonText}>
+                  {isLastStep ? copy.submit : copy.next}
+                </Text>
+                {!isLastStep && <ChevronRight size={20} color="#FFFFFF" />}
+              </>
             )}
           </Pressable>
         </View>
@@ -665,115 +610,198 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  messageList: {
-    padding: 16,
-    paddingTop: 8,
+  flex: {
+    flex: 1,
   },
-  row: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  rowLeft: {
-    justifyContent: 'flex-start',
-  },
-  rowRight: {
-    justifyContent: 'flex-end',
-  },
-  bubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  userBubble: {
-    backgroundColor: COLORS.userBubble,
-    borderBottomRightRadius: 6,
-  },
-  botBubble: {
-    backgroundColor: COLORS.botBubble,
-    borderBottomLeftRadius: 6,
-  },
-  bubbleText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  userText: {
-    color: '#FFFFFF',
-  },
-  botText: {
-    color: COLORS.text,
-  },
-  bubbleImage: {
-    width: 180,
-    height: 120,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  typingContainer: {
+  langButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: COLORS.primaryLight,
   },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.textSecondary,
+  langText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: COLORS.primary,
   },
-  inputContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingHorizontal: 16,
+  progressContainer: {
+    paddingHorizontal: 20,
     paddingTop: 12,
+    paddingBottom: 8,
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  progressTrack: {
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 26,
+    fontWeight: '700' as const,
+    color: COLORS.text,
+    marginBottom: 8,
+    lineHeight: 32,
+  },
+  stepSubtitle: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    marginBottom: 32,
+    lineHeight: 22,
   },
   input: {
-    flex: 1,
     backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    fontSize: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    fontSize: 17,
     color: COLORS.text,
-    borderWidth: 1,
+  },
+  inputError: {
+    borderColor: COLORS.error,
+    backgroundColor: COLORS.errorLight,
+  },
+  vinInput: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: 1,
+  },
+  vinCounter: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    textAlign: 'right',
+    marginTop: 8,
+  },
+  errorText: {
+    fontSize: 13,
+    color: COLORS.error,
+    marginTop: 8,
+  },
+  countSelector: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  countOption: {
+    flex: 1,
+    paddingVertical: 24,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countOptionSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  countText: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    color: COLORS.textSecondary,
+  },
+  countTextSelected: {
+    color: COLORS.primary,
+  },
+  coverageOptions: {
+    gap: 16,
+  },
+  coverageCard: {
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 2,
     borderColor: COLORS.border,
   },
-  sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  coverageCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  coverageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  coverageTitle: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: COLORS.text,
+  },
+  coverageTitleSelected: {
+    color: COLORS.primary,
+  },
+  coverageDesc: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendButtonDisabled: {
-    backgroundColor: COLORS.border,
-  },
-  uploadBar: {
+  footer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
-    paddingVertical: 16,
-    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    backgroundColor: COLORS.background,
   },
-  uploadOption: {
+  backButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
-  uploadOptionText: {
-    fontSize: 12,
+  backButtonText: {
+    fontSize: 15,
     color: COLORS.textSecondary,
+    marginLeft: 4,
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 28,
+    gap: 6,
+  },
+  nextButtonDisabled: {
+    backgroundColor: COLORS.border,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });
