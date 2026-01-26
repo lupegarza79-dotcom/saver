@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#25D366",
+    backgroundColor: "#1A8F4A",
   },
   secondaryLabel: {
     color: "rgba(255,255,255,0.85)",
