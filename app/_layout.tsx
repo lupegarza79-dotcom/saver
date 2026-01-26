@@ -20,8 +20,15 @@ function RootLayoutNav() {
         contentStyle: { backgroundColor: '#F7F9FC' },
       }}
     >
-      {/* v1 Consumer Screens */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="quote-form"
+        options={{
+          headerShown: true,
+          headerTitle: 'Get a Quote',
+          headerBackTitle: 'Back',
+        }}
+      />
       <Stack.Screen
         name="upload-document"
         options={{
@@ -29,14 +36,6 @@ function RootLayoutNav() {
           headerTitle: 'Upload Policy',
           headerBackTitle: 'Back',
           presentation: 'modal',
-        }}
-      />
-      <Stack.Screen
-        name="ai-assistant"
-        options={{
-          headerShown: true,
-          headerTitle: 'Saver',
-          headerBackTitle: 'Back',
         }}
       />
       <Stack.Screen
@@ -53,16 +52,12 @@ function RootLayoutNav() {
           headerShown: false,
         }}
       />
-      
-      {/* Agent entry (minimal) */}
       <Stack.Screen
         name="agents"
         options={{
           headerShown: false,
         }}
       />
-      
-      {/* Admin for MG operations */}
       <Stack.Screen
         name="admin"
         options={{
