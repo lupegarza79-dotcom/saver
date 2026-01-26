@@ -6,10 +6,11 @@ import {
   StyleSheet,
   Platform,
   Animated,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Upload, MessageCircle, Shield, BadgeCheck } from "lucide-react-native";
+import { FileText, Upload, MessageCircle, Shield } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/contexts/AppContext";
@@ -19,12 +20,12 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { language, setLanguage } = useApp();
 
+  const quoteScale = useRef(new Animated.Value(1)).current;
   const uploadScale = useRef(new Animated.Value(1)).current;
-  const chatScale = useRef(new Animated.Value(1)).current;
 
   const animatePress = useCallback((scale: Animated.Value) => {
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.97, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start();
   }, []);
@@ -34,50 +35,51 @@ export default function HomeScreen() {
   const copy = useMemo(() => {
     if (isEs) {
       return {
-        title: "Ahorra en\nSeguro de Auto",
-        subtitle: "Sube tu póliza o contesta preguntas.\nRecibe cotizaciones reales. Sin spam.",
-        chips: "GRATIS • FÁCIL • RÁPIDO",
-        uploadTitle: "Subir Póliza",
-        uploadSub: "Declarations Page o ID Cards",
-        chatTop: "¿No tienes tu póliza?",
-        chatTitle: "Contesta unas preguntas",
-        chatSub: "Te guiamos 1-por-1 para armar tu perfil",
-        agent: "Soy Agente (Recibir leads)",
-        trust1: "Sin llamadas",
-        trust2: "Tú eliges",
-        trust3: "Ahorros reales",
+        title: "Seguro de Auto\nSimplificado",
+        subtitle: "Cotiza o sube tu póliza actual.\nSin llamadas. Sin spam.",
+        cta1: "Obtener Cotización",
+        cta1Sub: "1–2 minutos",
+        cta2: "Subir Póliza",
+        cta2Sub: "PDF o Foto",
+        agent: "Soy Agente",
+        terms: "Términos",
+        whatsappHelp: "¿Necesitas ayuda?",
       };
     }
     return {
-      title: "Save on\nAuto Insurance",
-      subtitle: "Upload your policy or answer a few questions.\nGet real quotes. No spam.",
-      chips: "FREE • EASY • FAST",
-      uploadTitle: "Upload Policy",
-      uploadSub: "Declarations Page or ID Cards",
-      chatTop: "Don't have your policy?",
-      chatTitle: "Answer a few questions",
-      chatSub: "We guide you one-by-one to build your profile",
-      agent: "I'm an Agent (Get leads)",
-      trust1: "No calls",
-      trust2: "You choose",
-      trust3: "Real savings",
+      title: "Auto Insurance\nSimplified",
+      subtitle: "Get a quote or upload your current policy.\nNo calls. No spam.",
+      cta1: "Get Quote",
+      cta1Sub: "1–2 min",
+      cta2: "Upload Policy",
+      cta2Sub: "PDF or Photo",
+      agent: "I'm an Agent",
+      terms: "Terms",
+      whatsappHelp: "Need help?",
     };
   }, [isEs]);
+
+  const handleGetQuote = () => {
+    animatePress(quoteScale);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    router.push("/quote-form");
+  };
 
   const handleUpload = () => {
     animatePress(uploadScale);
     if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     router.push("/upload-document");
   };
 
-  const handleChat = () => {
-    animatePress(chatScale);
+  const handleWhatsApp = () => {
     if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.selectionAsync();
     }
-    router.push("/quote-form");
+    Linking.openURL("https://wa.me/19567738844");
   };
 
   const handleAgentPress = () => {
@@ -87,14 +89,18 @@ export default function HomeScreen() {
     router.push("/agents");
   };
 
+  const handleTermsPress = () => {
+    router.push("/modal?type=terms");
+  };
+
   return (
-    <View style={[styles.root, { paddingTop: Math.max(insets.top, 14) }]}>
+    <View style={styles.root}>
       <LinearGradient
-        colors={["#0B1220", "#0B1B3A", "#0B1220"]}
+        colors={["#0B1220", "#0F1D32", "#0B1220"]}
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.brandRow}>
           <View style={styles.brandIcon}>
             <Shield size={18} color="#FFFFFF" />
@@ -126,297 +132,234 @@ export default function HomeScreen() {
         <Text style={styles.title}>{copy.title}</Text>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
-        <Text style={styles.chips}>{copy.chips}</Text>
-
-        <View style={styles.uploadGlow}>
-          <Animated.View style={{ transform: [{ scale: uploadScale }] }}>
+        <View style={styles.ctaContainer}>
+          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: quoteScale }] }]}>
             <Pressable
-              onPress={handleUpload}
+              onPress={handleGetQuote}
               style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.92 }]}
             >
-              <View style={styles.primaryLeft}>
-                <Upload size={20} color="#FFFFFF" />
+              <View style={styles.btnIconWrap}>
+                <FileText size={22} color="#FFFFFF" />
               </View>
               <View style={styles.btnTextWrap}>
-                <Text style={styles.primaryTitle}>{copy.uploadTitle}</Text>
-                <Text style={styles.primarySub}>{copy.uploadSub}</Text>
+                <Text style={styles.primaryTitle}>{copy.cta1}</Text>
+                <Text style={styles.primarySub}>{copy.cta1Sub}</Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: uploadScale }] }]}>
+            <Pressable
+              onPress={handleUpload}
+              style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.92 }]}
+            >
+              <View style={styles.btnIconWrapAlt}>
+                <Upload size={22} color="#0B5FFF" />
+              </View>
+              <View style={styles.btnTextWrap}>
+                <Text style={styles.secondaryTitle}>{copy.cta2}</Text>
+                <Text style={styles.secondarySub}>{copy.cta2Sub}</Text>
               </View>
             </Pressable>
           </Animated.View>
         </View>
+      </View>
 
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>{isEs ? "o" : "or"}</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Animated.View style={{ transform: [{ scale: chatScale }] }}>
-          <Pressable
-            onPress={handleChat}
-            style={({ pressed }) => [styles.secondaryCard, pressed && { opacity: 0.94 }]}
-          >
-            <View style={styles.secondaryIcon}>
-              <MessageCircle size={20} color="#0B5FFF" />
-            </View>
-            <View style={styles.btnTextWrap}>
-              <Text style={styles.secondaryTop}>{copy.chatTop}</Text>
-              <Text style={styles.secondaryTitle}>{copy.chatTitle}</Text>
-              <Text style={styles.secondarySub}>{copy.chatSub}</Text>
-            </View>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={styles.footerLinks}>
+          <Pressable onPress={handleAgentPress} style={styles.footerLink}>
+            <Text style={styles.footerLinkText}>{copy.agent}</Text>
           </Pressable>
-        </Animated.View>
-
-        <View style={styles.trustRow}>
-          <View style={styles.trustChip}>
-            <BadgeCheck size={16} color="#22C55E" />
-            <Text style={styles.trustText}>{copy.trust1}</Text>
-          </View>
-          <View style={styles.trustChip}>
-            <BadgeCheck size={16} color="#22C55E" />
-            <Text style={styles.trustText}>{copy.trust2}</Text>
-          </View>
-          <View style={styles.trustChip}>
-            <BadgeCheck size={16} color="#22C55E" />
-            <Text style={styles.trustText}>{copy.trust3}</Text>
-          </View>
+          <View style={styles.footerDot} />
+          <Pressable onPress={handleTermsPress} style={styles.footerLink}>
+            <Text style={styles.footerLinkText}>{copy.terms}</Text>
+          </Pressable>
         </View>
       </View>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-        <Pressable onPress={handleAgentPress} style={styles.agentLink}>
-          <Text style={styles.agentText}>{copy.agent}</Text>
-        </Pressable>
-        <View style={styles.footerRow}>
-          <Pressable onPress={() => router.push('/modal?type=terms')}>
-            <Text style={styles.termsLink}>{isEs ? 'Términos' : 'Terms'}</Text>
-          </Pressable>
-          <Text style={styles.footerDot}>·</Text>
-          <Text style={styles.footerTiny}>Saver v1.0</Text>
-        </View>
-      </View>
+      <Pressable
+        onPress={handleWhatsApp}
+        style={[styles.whatsappFab, { bottom: Math.max(insets.bottom, 16) + 60 }]}
+      >
+        <MessageCircle size={24} color="#FFFFFF" fill="#FFFFFF" />
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { 
+  root: {
     flex: 1,
   },
   header: {
-    paddingHorizontal: 18,
-    paddingTop: 6,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  brandRow: { 
-    flexDirection: "row", 
-    alignItems: "center", 
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   brandIcon: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 12,
-    backgroundColor: "rgba(59,130,246,0.9)",
+    backgroundColor: "#0B5FFF",
     alignItems: "center",
     justifyContent: "center",
   },
-  brandText: { 
-    color: "#EAF2FF", 
-    fontWeight: "900" as const, 
-    fontSize: 18,
+  brandText: {
+    color: "#FFFFFF",
+    fontWeight: "800" as const,
+    fontSize: 20,
+    letterSpacing: -0.5,
   },
   langPill: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 999,
-    padding: 4,
-    gap: 4,
+    padding: 3,
   },
   langBtn: {
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 999,
   },
-  langBtnActive: { 
-    backgroundColor: "rgba(255,255,255,0.18)",
+  langBtnActive: {
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
-  langText: { 
-    color: "rgba(255,255,255,0.75)", 
-    fontWeight: "800" as const, 
-    fontSize: 12,
+  langText: {
+    color: "rgba(255,255,255,0.6)",
+    fontWeight: "700" as const,
+    fontSize: 13,
   },
-  langTextActive: { 
+  langTextActive: {
     color: "#FFFFFF",
   },
   content: {
     flex: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 24,
     justifyContent: "center",
-    gap: 14,
   },
   title: {
     color: "#FFFFFF",
-    fontSize: 40,
-    lineHeight: 44,
-    fontWeight: "900" as const,
+    fontSize: 36,
+    lineHeight: 42,
+    fontWeight: "800" as const,
     letterSpacing: -0.5,
+    marginBottom: 12,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "600" as const,
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "500" as const,
+    marginBottom: 32,
   },
-  chips: {
-    color: "rgba(255,255,255,0.80)",
-    fontSize: 12,
-    letterSpacing: 2,
-    fontWeight: "900" as const,
+  ctaContainer: {
+    gap: 14,
   },
-  uploadGlow: {
-    borderRadius: 22,
-    shadowColor: "#3B82F6",
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 4 },
+  ctaWrapper: {
+    borderRadius: 16,
   },
   primaryBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 16,
-    borderRadius: 18,
+    gap: 14,
+    padding: 18,
+    borderRadius: 16,
     backgroundColor: "#0B5FFF",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
   },
-  primaryLeft: {
-    width: 42,
-    height: 42,
+  btnIconWrap: {
+    width: 48,
+    height: 48,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnIconWrapAlt: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(11,95,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
   btnTextWrap: {
     flex: 1,
   },
-  primaryTitle: { 
-    color: "#FFFFFF", 
-    fontSize: 16, 
-    fontWeight: "900" as const,
-  },
-  primarySub: { 
-    color: "rgba(255,255,255,0.80)", 
-    fontSize: 12, 
-    marginTop: 2, 
+  primaryTitle: {
+    color: "#FFFFFF",
+    fontSize: 17,
     fontWeight: "700" as const,
   },
-  dividerRow: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 10,
+  primarySub: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 13,
+    fontWeight: "500" as const,
+    marginTop: 2,
   },
-  dividerLine: { 
-    flex: 1, 
-    height: 1, 
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  dividerText: { 
-    color: "rgba(255,255,255,0.50)", 
-    fontWeight: "800" as const,
-  },
-  secondaryCard: {
+  secondaryBtn: {
     flexDirection: "row",
-    gap: 12,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    gap: 14,
+    padding: 18,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
   },
-  secondaryIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "rgba(11,95,255,0.12)",
+  secondaryTitle: {
+    color: "#0F172A",
+    fontSize: 17,
+    fontWeight: "700" as const,
+  },
+  secondarySub: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "500" as const,
+    marginTop: 2,
+  },
+  footer: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+  },
+  footerLinks: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 16,
   },
-  secondaryTop: { 
-    color: "#334155", 
-    fontSize: 12, 
-    fontWeight: "800" as const,
-  },
-  secondaryTitle: { 
-    color: "#0F172A", 
-    fontSize: 16, 
-    fontWeight: "900" as const, 
-    marginTop: 2,
-  },
-  secondarySub: { 
-    color: "#475569", 
-    fontSize: 12, 
-    fontWeight: "700" as const, 
-    marginTop: 2,
-  },
-  trustRow: { 
-    flexDirection: "row", 
-    gap: 10, 
-    flexWrap: "wrap",
-  },
-  trustChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  footerLink: {
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    paddingHorizontal: 4,
   },
-  trustText: { 
-    color: "rgba(255,255,255,0.85)", 
-    fontWeight: "800" as const, 
-    fontSize: 12,
-  },
-  footer: { 
-    paddingHorizontal: 18, 
-    paddingTop: 6,
-  },
-  agentLink: { 
-    alignSelf: "center", 
-    paddingVertical: 10, 
-    paddingHorizontal: 14,
-  },
-  agentText: { 
-    color: "rgba(255,255,255,0.65)", 
-    fontWeight: "800" as const,
-  },
-  footerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  termsLink: {
-    color: "rgba(255,255,255,0.50)",
-    fontWeight: "700" as const,
-    fontSize: 12,
-    textDecorationLine: "underline" as const,
+  footerLinkText: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 14,
+    fontWeight: "600" as const,
   },
   footerDot: {
-    color: "rgba(255,255,255,0.35)",
-    fontSize: 12,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.3)",
   },
-  footerTiny: { 
-    color: "rgba(255,255,255,0.35)", 
-    fontWeight: "700" as const, 
-    fontSize: 12,
+  whatsappFab: {
+    position: "absolute",
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#25D366",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
