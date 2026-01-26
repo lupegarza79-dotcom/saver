@@ -141,31 +141,48 @@ CREATE POLICY "Service role can manage quotes" ON quotes
   WITH CHECK (true);
 
 -- ============================================
--- USEFUL VIEWS
+-- ADMIN SCHEMA (private, not exposed to clients)
+-- ============================================
+CREATE SCHEMA IF NOT EXISTS admin;
+
+-- Revoke public access to admin schema
+REVOKE ALL ON SCHEMA admin FROM public;
+REVOKE ALL ON SCHEMA admin FROM anon;
+REVOKE ALL ON SCHEMA admin FROM authenticated;
+
+-- Grant access only to service_role
+GRANT ALL ON SCHEMA admin TO service_role;
+
+-- ============================================
+-- ADMIN VIEWS (private schema)
 -- ============================================
 
--- Lead summary view with latest quote request
-DROP VIEW IF EXISTS lead_summary;
-CREATE VIEW lead_summary
+-- Drop old public views if they exist (migration)
+DROP VIEW IF EXISTS public.lead_summary;
+DROP VIEW IF EXISTS public.intake_stats;
+
+-- Lead summary view with latest quote request (admin only)
+DROP VIEW IF EXISTS admin.lead_summary;
+CREATE VIEW admin.lead_summary
 WITH (security_invoker = true) AS
 SELECT 
   l.*,
   qr.id as latest_quote_request_id,
   qr.status as latest_quote_request_status,
   qr.created_at as latest_quote_request_at,
-  (SELECT COUNT(*) FROM quotes q WHERE q.quote_request_id = qr.id) as quote_count,
-  (SELECT MIN(premium_cents) FROM quotes q WHERE q.quote_request_id = qr.id) as best_premium_cents
-FROM leads l
+  (SELECT COUNT(*) FROM public.quotes q WHERE q.quote_request_id = qr.id) as quote_count,
+  (SELECT MIN(premium_cents) FROM public.quotes q WHERE q.quote_request_id = qr.id) as best_premium_cents
+FROM public.leads l
 LEFT JOIN LATERAL (
-  SELECT * FROM quote_requests 
+  SELECT * FROM public.quote_requests 
   WHERE lead_id = l.id 
   ORDER BY created_at DESC 
   LIMIT 1
 ) qr ON true;
 
--- Stats view
-DROP VIEW IF EXISTS intake_stats;
-CREATE VIEW intake_stats
+-- Stats view (admin only)
+DROP VIEW IF EXISTS admin.intake_stats;
+CREATE VIEW admin.intake_stats
 WITH (security_invoker = true) AS
 SELECT
   COUNT(*) as total_leads,
@@ -174,4 +191,8 @@ SELECT
   COUNT(*) FILTER (WHERE status = 'READY_TO_QUOTE') as ready_to_quote,
   COUNT(*) FILTER (WHERE can_quote = true) as can_quote_count,
   AVG(score) as avg_score
-FROM leads;
+FROM public.leads;
+
+-- Grant view access to service_role
+GRANT SELECT ON admin.lead_summary TO service_role;
+GRANT SELECT ON admin.intake_stats TO service_role;
