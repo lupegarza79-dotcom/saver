@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Platform,
   Animated,
-  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -82,13 +81,6 @@ export default function HomeScreen() {
     router.push("/upload-document");
   };
 
-  const handleWhatsApp = () => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync();
-    }
-    Linking.openURL("https://wa.me/19567738844");
-  };
-
   const handleAgentPress = () => {
     if (Platform.OS !== "web") {
       Haptics.selectionAsync();
@@ -107,7 +99,7 @@ export default function HomeScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 16 }]}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 24 }]}>
         <View style={styles.brandRow}>
           <View style={styles.brandIcon}>
             <Shield size={18} color="#FFFFFF" />
@@ -151,7 +143,7 @@ export default function HomeScreen() {
               style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.92 }]}
             >
               <View style={styles.btnIconWrapAlt}>
-                <MessageCircle size={22} color="#0B5FFF" />
+                <MessageCircle size={20} color="#FFFFFF" />
               </View>
               <View style={styles.btnTextWrap}>
                 <Text style={styles.secondaryLabel}>{copy.quoteLabel}</Text>
@@ -176,12 +168,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <Pressable
-        onPress={handleWhatsApp}
-        style={[styles.whatsappFab, { bottom: Math.max(insets.bottom, 16) + 60 }]}
-      >
-        <MessageCircle size={24} color="#FFFFFF" fill="#FFFFFF" />
-      </Pressable>
+      
     </View>
   );
 }
@@ -284,10 +271,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnIconWrapAlt: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "rgba(11,95,255,0.12)",
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -308,39 +295,39 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.95)",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "#25D366",
   },
   secondaryLabel: {
-    color: "#64748B",
+    color: "rgba(255,255,255,0.85)",
     fontSize: 13,
     fontWeight: "500" as const,
     marginBottom: 2,
   },
   secondaryTitle: {
-    color: "#0F172A",
-    fontSize: 17,
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "700" as const,
   },
   secondarySub: {
-    color: "#64748B",
-    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 12,
     fontWeight: "400" as const,
     marginTop: 3,
   },
   footer: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 8,
     alignItems: "center",
   },
   agentBtn: {
     backgroundColor: "#4F6EF7",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
     borderRadius: 14,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   agentBtnText: {
     color: "#FFFFFF",
@@ -376,19 +363,5 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: "rgba(255,255,255,0.3)",
   },
-  whatsappFab: {
-    position: "absolute",
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#25D366",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
+  
 });
