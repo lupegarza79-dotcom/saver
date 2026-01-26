@@ -37,27 +37,31 @@ export default function HomeScreen() {
       return {
         title: "Ahorra en\nSeguro de Auto",
         subtitle: "Sube tu póliza o responde unas preguntas.\nCotizaciones reales. Sin spam.",
-        tagline: "GRATIS • FÁCIL • RÁPIDO",
-        cta1: "Obtener Cotización",
-        cta1Sub: "1–2 minutos",
-        cta2: "Subir Póliza",
-        cta2Sub: "PDF o Foto",
-        agent: "Soy Agente",
+        tagline: "GRATIS  •  FÁCIL  •  RÁPIDO",
+        uploadTitle: "Subir Póliza",
+        uploadSub: "Página de Declaraciones o Tarjetas de ID",
+        or: "o",
+        quoteLabel: "¿No tienes tu póliza?",
+        quoteTitle: "Responde unas preguntas",
+        quoteSub: "Te guiamos paso a paso para crear tu perfil",
+        agent: "Agentes de Seguros\nregístrense aquí.",
         terms: "Términos",
-        whatsappHelp: "¿Necesitas ayuda?",
+        version: "Saver v1.0",
       };
     }
     return {
       title: "Save on\nAuto Insurance",
       subtitle: "Upload your policy or answer a few questions.\nGet real quotes. No spam.",
-      tagline: "FREE • EASY • FAST",
-      cta1: "Get Quote",
-      cta1Sub: "1–2 min",
-      cta2: "Upload Policy",
-      cta2Sub: "PDF or Photo",
-      agent: "I'm an Agent",
+      tagline: "FREE  •  EASY  •  FAST",
+      uploadTitle: "Upload Policy",
+      uploadSub: "Declarations Page or ID Cards",
+      or: "or",
+      quoteLabel: "Don't have your policy?",
+      quoteTitle: "Answer a few questions",
+      quoteSub: "We guide you one-by-one to build your profile",
+      agent: "Insurance Agents\nsign up here.",
       terms: "Terms",
-      whatsappHelp: "Need help?",
+      version: "Saver v1.0",
     };
   }, [isEs]);
 
@@ -136,32 +140,39 @@ export default function HomeScreen() {
         <Text style={styles.tagline}>{copy.tagline}</Text>
 
         <View style={styles.ctaContainer}>
-          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: quoteScale }] }]}>
+          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: uploadScale }] }]}>
             <Pressable
-              onPress={handleGetQuote}
+              onPress={handleUpload}
               style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.92 }]}
             >
               <View style={styles.btnIconWrap}>
-                <FileText size={22} color="#FFFFFF" />
+                <Upload size={22} color="#FFFFFF" />
               </View>
               <View style={styles.btnTextWrap}>
-                <Text style={styles.primaryTitle}>{copy.cta1}</Text>
-                <Text style={styles.primarySub}>{copy.cta1Sub}</Text>
+                <Text style={styles.primaryTitle}>{copy.uploadTitle}</Text>
+                <Text style={styles.primarySub}>{copy.uploadSub}</Text>
               </View>
             </Pressable>
           </Animated.View>
 
-          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: uploadScale }] }]}>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>{copy.or}</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: quoteScale }] }]}>
             <Pressable
-              onPress={handleUpload}
+              onPress={handleGetQuote}
               style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.92 }]}
             >
               <View style={styles.btnIconWrapAlt}>
-                <Upload size={22} color="#0B5FFF" />
+                <MessageCircle size={22} color="#0B5FFF" />
               </View>
               <View style={styles.btnTextWrap}>
-                <Text style={styles.secondaryTitle}>{copy.cta2}</Text>
-                <Text style={styles.secondarySub}>{copy.cta2Sub}</Text>
+                <Text style={styles.secondaryLabel}>{copy.quoteLabel}</Text>
+                <Text style={styles.secondaryTitle}>{copy.quoteTitle}</Text>
+                <Text style={styles.secondarySub}>{copy.quoteSub}</Text>
               </View>
             </Pressable>
           </Animated.View>
@@ -169,14 +180,15 @@ export default function HomeScreen() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <Pressable onPress={handleAgentPress} style={styles.agentBtn}>
+          <Text style={styles.agentBtnText}>{copy.agent}</Text>
+        </Pressable>
         <View style={styles.footerLinks}>
-          <Pressable onPress={handleAgentPress} style={styles.footerLink}>
-            <Text style={styles.footerLinkText}>{copy.agent}</Text>
-          </Pressable>
-          <View style={styles.footerDot} />
           <Pressable onPress={handleTermsPress} style={styles.footerLink}>
             <Text style={styles.footerLinkText}>{copy.terms}</Text>
           </Pressable>
+          <View style={styles.footerDot} />
+          <Text style={styles.footerVersionText}>{copy.version}</Text>
         </View>
       </View>
 
@@ -249,32 +261,45 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#FFFFFF",
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 40,
+    lineHeight: 46,
     fontWeight: "800" as const,
     letterSpacing: -0.5,
-    marginBottom: 12,
-    textAlign: "center" as const,
+    marginBottom: 16,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(255,255,255,0.7)",
     fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "500" as const,
-    marginBottom: 8,
-    textAlign: "center" as const,
+    lineHeight: 24,
+    fontWeight: "400" as const,
+    marginBottom: 12,
   },
   tagline: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 15,
-    lineHeight: 20,
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700" as const,
-    letterSpacing: 2,
-    marginBottom: 32,
-    textAlign: "center" as const,
+    letterSpacing: 3,
+    marginBottom: 28,
   },
   ctaContainer: {
-    gap: 14,
+    gap: 12,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  dividerText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 14,
+    fontWeight: "500" as const,
   },
   ctaWrapper: {
     borderRadius: 16,
@@ -323,7 +348,13 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 18,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255,255,255,0.95)",
+  },
+  secondaryLabel: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "500" as const,
+    marginBottom: 2,
   },
   secondaryTitle: {
     color: "#0F172A",
@@ -333,32 +364,53 @@ const styles = StyleSheet.create({
   secondarySub: {
     color: "#64748B",
     fontSize: 13,
-    fontWeight: "500" as const,
-    marginTop: 2,
+    fontWeight: "400" as const,
+    marginTop: 3,
   },
   footer: {
     paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingTop: 16,
+    alignItems: "center",
+  },
+  agentBtn: {
+    backgroundColor: "#4F6EF7",
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    marginBottom: 16,
+  },
+  agentBtnText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+    lineHeight: 24,
   },
   footerLinks: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 16,
+    gap: 8,
   },
   footerLink: {
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 4,
   },
   footerLinkText: {
-    color: "rgba(255,255,255,0.55)",
+    color: "rgba(255,255,255,0.5)",
     fontSize: 14,
-    fontWeight: "600" as const,
+    fontWeight: "500" as const,
+    textDecorationLine: "underline" as const,
+  },
+  footerVersionText: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
+    fontWeight: "400" as const,
   },
   footerDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: "rgba(255,255,255,0.3)",
   },
   whatsappFab: {
