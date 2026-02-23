@@ -637,7 +637,7 @@ export default function UploadDocumentScreen() {
       });
 
       setIsUploading(false);
-      router.push('/quote-submitted');
+      router.push('/quote-submitted' as any);
       return;
     }
 
@@ -724,7 +724,7 @@ export default function UploadDocumentScreen() {
 
     setIsUploading(false);
     // Navigate to completion screen
-    router.push('/quote-submitted');
+    router.push('/quote-submitted' as any);
   };
 
   const onWebFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -887,7 +887,7 @@ export default function UploadDocumentScreen() {
               if (Platform.OS !== 'web') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
-              router.push('/quote-form');
+              router.push('/quote-form' as any);
             }}
             activeOpacity={0.7}
           >

@@ -17,7 +17,7 @@ function RootLayoutNav() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#F7F9FC' },
+        contentStyle: { backgroundColor: '#0A1120' },
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -27,6 +27,8 @@ function RootLayoutNav() {
           headerShown: true,
           headerTitle: 'Get a Quote',
           headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#0A1120' },
+          headerTintColor: '#F0F4F8',
         }}
       />
       <Stack.Screen
@@ -35,6 +37,8 @@ function RootLayoutNav() {
           headerShown: true,
           headerTitle: 'Upload Policy',
           headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#0A1120' },
+          headerTintColor: '#F0F4F8',
           presentation: 'modal',
         }}
       />
