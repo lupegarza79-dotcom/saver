@@ -103,7 +103,7 @@ export default function QuotesScreen() {
       </Text>
       <TouchableOpacity 
         style={styles.emptyButton}
-        onPress={() => router.push('/upload-document')}
+        onPress={() => router.push('/upload-document' as any)}
       >
         <LinearGradient
           colors={[Colors.secondary, Colors.info]}
@@ -212,7 +212,7 @@ export default function QuotesScreen() {
                     </Text>
                     <TouchableOpacity 
                       style={styles.completeInfoButton}
-                      onPress={() => router.push('/_future/ai-assistant')}
+                      onPress={() => router.push('/_future/ai-assistant' as any)}
                     >
                       <Text style={styles.completeInfoButtonText}>
                         {t.quotes?.selectQuote ? 'Complete Info' : 'Complete My Info'}

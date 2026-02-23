@@ -258,7 +258,7 @@ export default function AIAssistantScreen() {
         "✅ Profile submitted!\n\nA licensed agent will review your info and contact you with real quotes.\n\nNo spam. No pressure.",
         "✅ ¡Perfil enviado!\n\nUn agente con licencia revisará tu información y te contactará con cotizaciones reales.\n\nSin spam. Sin presión."
       ), 500);
-      setTimeout(() => router.push('/quote-submitted'), 2500);
+      setTimeout(() => router.push('/quote-submitted' as any), 2500);
     } catch (error) {
       console.error('[SUBMIT] Error:', error);
       addBotMessage(t("Failed to submit. Please try again.", "Error al enviar. Por favor intenta de nuevo."), 500);
