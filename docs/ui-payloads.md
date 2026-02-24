@@ -1,6 +1,43 @@
 # UI Payloads per Step / Flow
 
-This document describes the payload shapes the frontend produces at each step and on final submit. The service adapter layer (`services/IntakeService.ts`) is the single place where UI payloads are mapped to backend payloads. **No screen should insert directly into Supabase or call backend tables.**
+This document describes the payload shapes the frontend produces at each step and on final submit. The service adapter layer (`services/IntakeService.ts` + `services/intakeAdapter.ts`) is the single place where UI payloads are mapped to Hub backend payloads. **No screen should insert directly into Supabase or call backend tables.**
+
+---
+
+## Hub Backend `leads` Schema
+
+All UI flows write to the `leads` table using this shape:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | `TEXT PK` | Generated client-side (`lead_<timestamp>_<random>`) |
+| `phone` | `TEXT` | Digits only |
+| `language` | `TEXT` | `'en'` or `'es'` |
+| `consent` | `BOOLEAN` | User consent to be contacted |
+| `intake_json` | `JSONB` | Full `QuoteInput` object (canonical shape) |
+| `status` | `TEXT` | `'WAITING_DOCS'`, `'NEEDS_INFO'`, or `'READY_TO_QUOTE'` |
+| `can_quote` | `BOOLEAN` | Computed from readiness gate |
+| `score` | `INTEGER` | Completeness score (0-100) |
+| `missing_required` | `JSONB` | `{ fieldKey, message }[]` |
+| `missing_recommended` | `JSONB` | `{ fieldKey, message }[]` |
+| `next_question_en` | `TEXT` | Next question in English |
+| `next_question_es` | `TEXT` | Next question in Spanish |
+
+---
+
+## Adapter Architecture
+
+```
+┌─────────────┐     ┌────────────────────┐     ┌─────────────────────┐     ┌─────────────┐
+│  Quote Form  │────▶│  intakeAdapter.ts  │────▶│  IntakeService.ts    │────▶│  Supabase   │
+│  Upload Doc  │────▶│  UI → QuoteInput    │     │  QuoteInput → Lead  │     │  leads table │
+│  Referral    │────▶│  (field mapping)    │     │  + readiness gate   │     │             │
+└─────────────┘     └────────────────────┘     └─────────────────────┘     └─────────────┘
+```
+
+1. **`intakeAdapter.ts`** maps UI payloads (`QuoteFormPayload`, `UploadIntakePayload`) → `QuoteInput` (the `intake_json` shape)
+2. **`IntakeService.ts`** runs `checkQuoteReadiness()` on the `QuoteInput` to compute `status`, `can_quote`, `score`, `missing_required`, `missing_recommended`, `next_question_en/es`
+3. Builds a `LeadInsert` and writes to `leads`
 
 ---
 
@@ -26,15 +63,15 @@ This document describes the payload shapes the frontend produces at each step an
 
 ```typescript
 {
-  phone: string;           // raw 10-digit
+  phone: string;
   fullName: string;
-  zip: string;             // 5-digit
+  zip: string;
   drivers: { name: string; dob: string }[];
   vehiclesCount: number;
-  vins: string[];          // 17-char VINs
+  vins: string[];
   coverage: 'minimum' | 'full';
   currentlyInsured: boolean | null;
-  insuredMonths: string | null;    // '3' | '6' | '12+' | null
+  insuredMonths: string | null;
   homeowner: boolean | null;
   contactPreference: 'whatsapp' | 'text' | 'call';
   language: 'en' | 'es';
@@ -42,25 +79,23 @@ This document describes the payload shapes the frontend produces at each step an
 }
 ```
 
-### Backend Mapping (via `IntakeService.submitQuoteForm`)
+### Backend Mapping
 
-| UI Field | Backend Column |
-|----------|----------------|
+`intakeAdapter.quoteFormToIntakeJson()` maps to `QuoteInput`:
+
+| UI Field | `intake_json` field |
+|----------|--------------------|
 | `phone` | `phone` (digits only) |
-| `fullName` | `full_name` |
-| `zip` | `zip` |
-| `drivers` | `drivers` (JSON array) |
-| `vins` | `vehicles` (JSON array of `{vin}`) |
-| `coverage` | `coverage_type` (`'liability'` or `'full'`) |
-| `currentlyInsured` | `currently_insured` |
-| `insuredMonths` | `insured_months` |
-| `homeowner` | `homeowner` |
-| `contactPreference` | `contact_preference` |
+| `fullName` | `insuredFullName` |
+| `zip` | `garagingAddress.zip` |
+| `drivers[].name/dob` | `drivers[].fullName/dob` |
+| `vins[]` | `vehicles[].vin` |
+| `coverage` | `coverageType` |
+| `contactPreference` | `contactPreference` |
 | `language` | `language` |
-| `consentGiven` | `consent` |
-| (auto) | `source: 'quote-form'` |
-| (auto) | `status: 'new'` |
-| (auto) | `created_at` |
+| `consentGiven` | `consentToContact` |
+
+Then `IntakeService` computes: `status`, `can_quote`, `score`, `missing_required`, `missing_recommended`, `next_question_en/es`
 
 ---
 
@@ -76,50 +111,43 @@ This document describes the payload shapes the frontend produces at each step an
   contactPreference: 'whatsapp' | 'text' | 'call';
   language: 'en' | 'es';
   consentGiven: boolean;
-  drivers: {
-    fullName?: string;
-    dob?: string;
-    idLast4?: string;
-  }[];
-  vehicles: {
-    vin?: string;
-    year?: number;
-    make?: string;
-    model?: string;
-  }[];
+  drivers: { fullName?: string; dob?: string; idLast4?: string }[];
+  vehicles: { vin?: string; year?: number; make?: string; model?: string }[];
   coverageType?: 'minimum' | 'full';
-  liabilityLimits?: string;        // e.g. "30000/60000"
+  liabilityLimits?: string;
   collisionDeductible?: number;
   compDeductible?: number;
   currentCarrier?: string;
   currentPremium?: number;
   policyExpiryDate?: string;
-  currentPolicyDoc?: string;        // 'uploaded' if dec page present
+  currentPolicyDoc?: string;
 }
 ```
 
-### Backend Mapping (via `IntakeService.submitUploadIntake`)
+### Backend Mapping
 
-| UI Field | Backend Column |
-|----------|----------------|
-| `insuredFullName` | `full_name` |
+`intakeAdapter.uploadIntakeToIntakeJson()` maps to `QuoteInput`:
+
+| UI Field | `intake_json` field |
+|----------|--------------------|
+| `insuredFullName` | `insuredFullName` |
 | `phone` | `phone` |
-| `zip` | `zip` |
-| `drivers` | `drivers` (JSON) |
-| `vehicles` | `vehicles` (JSON) |
-| `coverageType` | `coverage_type` |
-| `liabilityLimits` | `liability_limits` |
-| `collisionDeductible` | `collision_deductible` |
-| `compDeductible` | `comp_deductible` |
-| `currentCarrier` | `current_carrier` |
-| `currentPremium` | `current_premium` |
-| `policyExpiryDate` | `policy_expiry_date` |
-| `currentPolicyDoc` | `current_policy_doc` |
-| `contactPreference` | `contact_preference` |
+| `zip` | `garagingAddress.zip` |
+| `drivers` | `drivers` |
+| `vehicles` | `vehicles` |
+| `coverageType` | `coverageType` |
+| `liabilityLimits` | `liabilityLimits` |
+| `collisionDeductible` | `collisionDeductible` |
+| `compDeductible` | `comprehensiveDeductible` |
+| `currentCarrier` | `currentCarrier` |
+| `currentPremium` | `currentPremium` |
+| `policyExpiryDate` | `policyExpiryDate` |
+| `currentPolicyDoc` | `currentPolicyDoc` |
+| `contactPreference` | `contactPreference` |
 | `language` | `language` |
-| `consentGiven` | `consent` |
-| (auto) | `source: 'upload'` |
-| (auto) | `status: 'new'` |
+| `consentGiven` | `consentToContact` |
+
+Then `IntakeService` computes: `status`, `can_quote`, `score`, `missing_required`, `missing_recommended`, `next_question_en/es`
 
 ---
 
@@ -129,41 +157,27 @@ This document describes the payload shapes the frontend produces at each step an
 
 ```typescript
 {
-  referrerPhone?: string;   // current user's phone
+  referrerPhone?: string;
   referredName: string;
-  referredPhone: string;    // 10-digit
+  referredPhone: string;
   language: 'en' | 'es';
   source: 'app_referral';
 }
 ```
 
-### Backend Mapping (via `IntakeService.submitReferral`)
+### Backend Mapping
 
-| UI Field | Backend Column |
-|----------|----------------|
-| `referrerPhone` | `referrer_phone` |
-| `referredName` | `referred_name` |
-| `referredPhone` | `referred_phone` |
-| `language` | `language` |
-| `source` | `source` |
-| (auto) | `status: 'new'` |
-| (auto) | `created_at` |
+Referrals are written to `leads` (no `referrals` table yet). The referred person becomes a lead with minimal `intake_json`:
 
----
+| UI Field | Lead column / `intake_json` field |
+|----------|----------------------------------|
+| `referredName` | `intake_json.insuredFullName` |
+| `referredPhone` | `phone` + `intake_json.phone` |
+| `language` | `language` + `intake_json.language` |
+| (auto) | `consent: false` |
+| (auto) | `status`: computed (typically `WAITING_DOCS`) |
 
-## Service Adapter Architecture
-
-```
-┌─────────────┐     ┌──────────────────────┐     ┌─────────────┐
-│  Quote Form  │────▶│                      │────▶│             │
-│              │     │  IntakeService.ts     │     │  Supabase   │
-│  Upload Doc  │────▶│  (payload mapping)   │────▶│  (backend)  │
-│              │     │                      │     │             │
-│  Referral    │────▶│  Single adapter layer │────▶│             │
-└─────────────┘     └──────────────────────┘     └─────────────┘
-```
-
-All payload-to-backend mapping happens in `services/IntakeService.ts`. UI screens produce typed payloads, the adapter maps them to backend column names. If the backend contract changes, only the adapter needs updating.
+The UI handles backend failure gracefully and continues with local flow.
 
 ---
 

@@ -1,4 +1,9 @@
 import { supabase } from '@/lib/supabase';
+import { checkQuoteReadiness, getRequiredMissing, getRecommendedMissing } from '@/utils/quoteReadiness';
+import type { IntakeStatus } from '@/types/intake';
+import { quoteFormToIntakeJson, uploadIntakeToIntakeJson } from './intakeAdapter';
+import type { QuoteInput } from '@/types/intake';
+import type { LeadInsert } from '@/backend/supabase/types';
 
 export type ContactPreference = 'whatsapp' | 'text' | 'call';
 
@@ -60,129 +65,149 @@ export interface SubmitResult {
   error?: string;
 }
 
-function mapQuoteFormToBackend(payload: QuoteFormPayload): Record<string, unknown> {
-  return {
-    phone: payload.phone.replace(/\D/g, ''),
-    full_name: payload.fullName.trim(),
-    zip: payload.zip.replace(/\D/g, ''),
-    vehicles: payload.vins.map((v) => ({ vin: v.trim() })),
-    drivers: payload.drivers.map((d) => ({
-      name: d.name.trim(),
-      dob: d.dob,
-    })),
-    coverage_type: payload.coverage === 'minimum' ? 'liability' : 'full',
-    currently_insured: payload.currentlyInsured,
-    insured_months: payload.insuredMonths,
-    homeowner: payload.homeowner,
-    contact_preference: payload.contactPreference,
-    language: payload.language,
-    consent: payload.consentGiven,
-    source: 'quote-form',
-    status: 'new',
-    created_at: new Date().toISOString(),
-  };
+function generateLeadId(): string {
+  return `lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function mapUploadIntakeToBackend(payload: UploadIntakePayload): Record<string, unknown> {
-  return {
-    phone: payload.phone?.replace(/\D/g, ''),
-    full_name: payload.insuredFullName?.trim(),
-    zip: payload.zip?.replace(/\D/g, ''),
-    vehicles: payload.vehicles
-      .filter((v) => v.vin || v.make)
-      .map((v) => ({
-        vin: v.vin,
-        year: v.year,
-        make: v.make,
-        model: v.model,
-      })),
-    drivers: payload.drivers
-      .filter((d) => d.fullName)
-      .map((d) => ({
-        name: d.fullName,
-        dob: d.dob,
-        id_last4: d.idLast4,
-      })),
-    coverage_type: payload.coverageType === 'minimum' ? 'liability' : payload.coverageType === 'full' ? 'full' : null,
-    liability_limits: payload.liabilityLimits,
-    collision_deductible: payload.collisionDeductible,
-    comp_deductible: payload.compDeductible,
-    current_carrier: payload.currentCarrier,
-    current_premium: payload.currentPremium,
-    policy_expiry_date: payload.policyExpiryDate,
-    current_policy_doc: payload.currentPolicyDoc,
-    contact_preference: payload.contactPreference,
-    language: payload.language,
-    consent: payload.consentGiven,
-    source: 'upload',
-    status: 'new',
-    created_at: new Date().toISOString(),
-  };
-}
+function buildLeadInsert(
+  intakeJson: QuoteInput,
+  phone: string | undefined,
+  language: 'en' | 'es',
+  consent: boolean,
+): LeadInsert {
+  const readiness = checkQuoteReadiness(intakeJson);
+  const requiredMissing = getRequiredMissing(intakeJson);
+  const recommendedMissing = getRecommendedMissing(intakeJson);
 
-function mapReferralToBackend(payload: ReferralPayload): Record<string, unknown> {
-  return {
-    referrer_phone: payload.referrerPhone?.replace(/\D/g, ''),
-    referred_name: payload.referredName.trim(),
-    referred_phone: payload.referredPhone.replace(/\D/g, ''),
-    language: payload.language,
-    source: payload.source,
-    status: 'new',
-    created_at: new Date().toISOString(),
+  const missingRequired = requiredMissing.map((f) => ({
+    fieldKey: f.key,
+    message: f.label_en,
+  }));
+
+  const missingRecommended = recommendedMissing.map((f) => ({
+    fieldKey: f.key,
+    message: f.label_en,
+  }));
+
+  const nextQuestion = readiness.nextQuestion;
+
+  const leadInsert: LeadInsert = {
+    id: generateLeadId(),
+    phone: phone?.replace(/\D/g, '') || null,
+    language,
+    consent,
+    intake_json: intakeJson,
+    status: readiness.status as IntakeStatus,
+    can_quote: readiness.canQuote,
+    score: readiness.completenessScore,
+    missing_required: missingRequired,
+    missing_recommended: missingRecommended,
+    next_question_en: nextQuestion?.en ?? null,
+    next_question_es: nextQuestion?.es ?? null,
   };
+
+  console.log('[IntakeService] buildLeadInsert:', {
+    id: leadInsert.id,
+    status: leadInsert.status,
+    can_quote: leadInsert.can_quote,
+    score: leadInsert.score,
+    missingRequired: missingRequired.length,
+    missingRecommended: missingRecommended.length,
+  });
+
+  return leadInsert;
 }
 
 export async function submitQuoteForm(payload: QuoteFormPayload): Promise<SubmitResult> {
-  const backendPayload = mapQuoteFormToBackend(payload);
-  console.log('[IntakeService] submitQuoteForm payload:', backendPayload);
+  console.log('[IntakeService] submitQuoteForm called');
 
   try {
-    const { error } = await supabase.from('leads').insert(backendPayload);
+    const intakeJson = quoteFormToIntakeJson(payload);
+    const leadInsert = buildLeadInsert(
+      intakeJson,
+      payload.phone,
+      payload.language,
+      payload.consentGiven,
+    );
+
+    console.log('[IntakeService] Inserting lead:', leadInsert.id);
+
+    const { error } = await supabase.from('leads').insert(leadInsert as unknown as Record<string, unknown>);
     if (error) {
-      console.error('[IntakeService] submitQuoteForm error:', error);
+      console.error('[IntakeService] submitQuoteForm insert error:', error);
       return { success: false, error: error.message };
     }
-    console.log('[IntakeService] Quote form submitted successfully');
-    return { success: true };
-  } catch (err: any) {
-    console.error('[IntakeService] submitQuoteForm exception:', err);
-    return { success: false, error: err?.message || 'Unknown error' };
+
+    console.log('[IntakeService] Quote form submitted successfully, leadId:', leadInsert.id);
+    return { success: true, leadId: leadInsert.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[IntakeService] submitQuoteForm exception:', message);
+    return { success: false, error: message };
   }
 }
 
 export async function submitUploadIntake(payload: UploadIntakePayload): Promise<SubmitResult> {
-  const backendPayload = mapUploadIntakeToBackend(payload);
-  console.log('[IntakeService] submitUploadIntake payload:', backendPayload);
+  console.log('[IntakeService] submitUploadIntake called');
 
   try {
-    const { error } = await supabase.from('leads').insert(backendPayload);
+    const intakeJson = uploadIntakeToIntakeJson(payload);
+    const leadInsert = buildLeadInsert(
+      intakeJson,
+      payload.phone,
+      payload.language,
+      payload.consentGiven,
+    );
+
+    console.log('[IntakeService] Inserting lead:', leadInsert.id);
+
+    const { error } = await supabase.from('leads').insert(leadInsert as unknown as Record<string, unknown>);
     if (error) {
-      console.error('[IntakeService] submitUploadIntake error:', error);
+      console.error('[IntakeService] submitUploadIntake insert error:', error);
       return { success: false, error: error.message };
     }
-    console.log('[IntakeService] Upload intake submitted successfully');
-    return { success: true };
-  } catch (err: any) {
-    console.error('[IntakeService] submitUploadIntake exception:', err);
-    return { success: false, error: err?.message || 'Unknown error' };
+
+    console.log('[IntakeService] Upload intake submitted successfully, leadId:', leadInsert.id);
+    return { success: true, leadId: leadInsert.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[IntakeService] submitUploadIntake exception:', message);
+    return { success: false, error: message };
   }
 }
 
 export async function submitReferral(payload: ReferralPayload): Promise<SubmitResult> {
-  const backendPayload = mapReferralToBackend(payload);
-  console.log('[IntakeService] submitReferral payload:', backendPayload);
+  console.log('[IntakeService] submitReferral called');
 
   try {
-    const { error } = await supabase.from('referrals').insert(backendPayload);
+    const intakeJson: QuoteInput = {
+      insuredFullName: payload.referredName.trim(),
+      phone: payload.referredPhone.replace(/\D/g, ''),
+      language: payload.language,
+      consentToContact: false,
+    };
+
+    const leadInsert = buildLeadInsert(
+      intakeJson,
+      payload.referredPhone,
+      payload.language,
+      false,
+    );
+
+    console.log('[IntakeService] Inserting referral as lead:', leadInsert.id);
+
+    const { error } = await supabase.from('leads').insert(leadInsert as unknown as Record<string, unknown>);
     if (error) {
-      console.error('[IntakeService] submitReferral error:', error);
+      console.error('[IntakeService] submitReferral insert error (referrals table may not exist, writing to leads):', error);
       return { success: false, error: error.message };
     }
-    console.log('[IntakeService] Referral submitted successfully');
-    return { success: true };
-  } catch (err: any) {
-    console.error('[IntakeService] submitReferral exception:', err);
-    return { success: false, error: err?.message || 'Unknown error' };
+
+    console.log('[IntakeService] Referral submitted successfully as lead, leadId:', leadInsert.id);
+    return { success: true, leadId: leadInsert.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[IntakeService] submitReferral exception:', message);
+    return { success: false, error: message };
   }
 }
 
@@ -190,9 +215,6 @@ export const IntakeService = {
   submitQuoteForm,
   submitUploadIntake,
   submitReferral,
-  _mapQuoteFormToBackend: mapQuoteFormToBackend,
-  _mapUploadIntakeToBackend: mapUploadIntakeToBackend,
-  _mapReferralToBackend: mapReferralToBackend,
 };
 
 export default IntakeService;
