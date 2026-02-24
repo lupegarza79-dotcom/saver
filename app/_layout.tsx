@@ -44,6 +44,16 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="upload-policy"
+        options={{
+          headerShown: true,
+          headerTitle: 'Upload Policy',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#0A1120' },
+          headerTintColor: '#F0F4F8',
+        }}
+      />
+      <Stack.Screen
         name="quote-submitted"
         options={{
           headerShown: false,

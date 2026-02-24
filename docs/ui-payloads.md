@@ -1,191 +1,128 @@
-# UI Payloads per Step / Flow
+# UI Payloads — Final Shape
 
-This document describes the payload shapes the frontend produces at each step and on final submit. The service adapter layer (`services/IntakeService.ts` + `services/intakeAdapter.ts`) is the single place where UI payloads are mapped to Hub backend payloads. **No screen should insert directly into Supabase or call backend tables.**
+## 1. Quote Form Submit Payload
 
----
+Sent from `app/quote-form.tsx` → `IntakeService.submitQuoteForm()`
 
-## Hub Backend `leads` Schema
-
-All UI flows write to the `leads` table using this shape:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `TEXT PK` | Generated client-side (`lead_<timestamp>_<random>`) |
-| `phone` | `TEXT` | Digits only |
-| `language` | `TEXT` | `'en'` or `'es'` |
-| `consent` | `BOOLEAN` | User consent to be contacted |
-| `intake_json` | `JSONB` | Full `QuoteInput` object (canonical shape) |
-| `status` | `TEXT` | `'WAITING_DOCS'`, `'NEEDS_INFO'`, or `'READY_TO_QUOTE'` |
-| `can_quote` | `BOOLEAN` | Computed from readiness gate |
-| `score` | `INTEGER` | Completeness score (0-100) |
-| `missing_required` | `JSONB` | `{ fieldKey, message }[]` |
-| `missing_recommended` | `JSONB` | `{ fieldKey, message }[]` |
-| `next_question_en` | `TEXT` | Next question in English |
-| `next_question_es` | `TEXT` | Next question in Spanish |
-
----
-
-## Adapter Architecture
-
-```
-┌─────────────┐     ┌────────────────────┐     ┌─────────────────────┐     ┌─────────────┐
-│  Quote Form  │────▶│  intakeAdapter.ts  │────▶│  IntakeService.ts    │────▶│  Supabase   │
-│  Upload Doc  │────▶│  UI → QuoteInput    │     │  QuoteInput → Lead  │     │  leads table │
-│  Referral    │────▶│  (field mapping)    │     │  + readiness gate   │     │             │
-└─────────────┘     └────────────────────┘     └─────────────────────┘     └─────────────┘
-```
-
-1. **`intakeAdapter.ts`** maps UI payloads (`QuoteFormPayload`, `UploadIntakePayload`) → `QuoteInput` (the `intake_json` shape)
-2. **`IntakeService.ts`** runs `checkQuoteReadiness()` on the `QuoteInput` to compute `status`, `can_quote`, `score`, `missing_required`, `missing_recommended`, `next_question_en/es`
-3. Builds a `LeadInsert` and writes to `leads`
-
----
-
-## 1. Quote Form Flow (`/quote-form`)
-
-### Steps & Fields Collected
-
-| Step | Field(s) | Type | Required |
-|------|----------|------|----------|
-| `phone` | `phone` | `string` (10 digits) | Yes |
-| `name` | `fullName` | `string` | Yes |
-| `zip` | `zip` | `string` (5 digits) | Yes |
-| `driversCount` | `driversCount` | `number` (1-4) | Yes |
-| `driverInfo` | `drivers[].name`, `drivers[].dob` | `string`, `MM/DD/YYYY` | Yes |
-| `vehiclesCount` | `vehiclesCount` | `number` (1-4) | Yes |
-| `vin` | `vins[]` | `string` (17 chars) | Yes |
-| `coverage` | `coverage` | `'minimum' \| 'full'` | Yes |
-| `discounts` | `currentlyInsured`, `insuredMonths`, `homeowner` | `boolean \| null`, `string \| null`, `boolean \| null` | Optional |
-| `contactPref` | `contactPreference` | `'whatsapp' \| 'text' \| 'call'` | Yes |
-| `consent` | `consentGiven` | `boolean` | Yes (must be true) |
-
-### Final Submit Payload (`QuoteFormPayload`)
-
-```typescript
+```json
 {
-  phone: string;
-  fullName: string;
-  zip: string;
-  drivers: { name: string; dob: string }[];
-  vehiclesCount: number;
-  vins: string[];
-  coverage: 'minimum' | 'full';
-  currentlyInsured: boolean | null;
-  insuredMonths: string | null;
-  homeowner: boolean | null;
-  contactPreference: 'whatsapp' | 'text' | 'call';
-  language: 'en' | 'es';
-  consentGiven: boolean;
+  "phone": "(555) 123-4567",
+  "fullName": "Juan Perez",
+  "zip": "78501",
+  "drivers": [
+    { "name": "Juan Perez", "dob": "01/15/1985" },
+    { "name": "Maria Perez", "dob": "03/22/1988" }
+  ],
+  "vehiclesCount": 1,
+  "vins": ["1HGBH41JXMN109186"],
+  "coverage": "minimum",
+  "currentlyInsured": true,
+  "insuredMonths": "12",
+  "homeowner": false,
+  "contactPreference": "whatsapp",
+  "language": "es",
+  "consentGiven": true
 }
 ```
 
-### Backend Mapping
+## 2. Upload Intake Payload
 
-`intakeAdapter.quoteFormToIntakeJson()` maps to `QuoteInput`:
+Sent from `app/upload-policy.tsx` → `IntakeService.submitUploadIntake()`
 
-| UI Field | `intake_json` field |
-|----------|--------------------|
-| `phone` | `phone` (digits only) |
-| `fullName` | `insuredFullName` |
-| `zip` | `garagingAddress.zip` |
-| `drivers[].name/dob` | `drivers[].fullName/dob` |
-| `vins[]` | `vehicles[].vin` |
-| `coverage` | `coverageType` |
-| `contactPreference` | `contactPreference` |
-| `language` | `language` |
-| `consentGiven` | `consentToContact` |
-
-Then `IntakeService` computes: `status`, `can_quote`, `score`, `missing_required`, `missing_recommended`, `next_question_en/es`
-
----
-
-## 2. Upload Policy Flow (`/upload-document`)
-
-### Fields Collected (from AI scan + user context)
-
-```typescript
+```json
 {
-  insuredFullName?: string;
-  phone?: string;
-  zip?: string;
-  contactPreference: 'whatsapp' | 'text' | 'call';
-  language: 'en' | 'es';
-  consentGiven: boolean;
-  drivers: { fullName?: string; dob?: string; idLast4?: string }[];
-  vehicles: { vin?: string; year?: number; make?: string; model?: string }[];
-  coverageType?: 'minimum' | 'full';
-  liabilityLimits?: string;
-  collisionDeductible?: number;
-  compDeductible?: number;
-  currentCarrier?: string;
-  currentPremium?: number;
-  policyExpiryDate?: string;
-  currentPolicyDoc?: string;
+  "insuredFullName": "Juan Perez",
+  "phone": "(555) 123-4567",
+  "zip": "78501",
+  "contactPreference": "whatsapp",
+  "language": "es",
+  "consentGiven": true,
+  "drivers": [
+    { "fullName": "Juan Perez", "dob": "01/15/1985" }
+  ],
+  "vehicles": [
+    { "vin": "1HGBH41JXMN109186", "year": 2020, "make": "Honda", "model": "Civic" }
+  ],
+  "coverageType": "full",
+  "liabilityLimits": "30/60/25",
+  "currentCarrier": "State Farm",
+  "currentPremium": 180,
+  "policyExpiryDate": "2025-06-15"
 }
 ```
 
-### Backend Mapping
+## 3. Referral Payload
 
-`intakeAdapter.uploadIntakeToIntakeJson()` maps to `QuoteInput`:
+Sent from `app/referral.tsx` → `IntakeService.submitReferral()`
 
-| UI Field | `intake_json` field |
-|----------|--------------------|
-| `insuredFullName` | `insuredFullName` |
-| `phone` | `phone` |
-| `zip` | `garagingAddress.zip` |
-| `drivers` | `drivers` |
-| `vehicles` | `vehicles` |
-| `coverageType` | `coverageType` |
-| `liabilityLimits` | `liabilityLimits` |
-| `collisionDeductible` | `collisionDeductible` |
-| `compDeductible` | `comprehensiveDeductible` |
-| `currentCarrier` | `currentCarrier` |
-| `currentPremium` | `currentPremium` |
-| `policyExpiryDate` | `policyExpiryDate` |
-| `currentPolicyDoc` | `currentPolicyDoc` |
-| `contactPreference` | `contactPreference` |
-| `language` | `language` |
-| `consentGiven` | `consentToContact` |
-
-Then `IntakeService` computes: `status`, `can_quote`, `score`, `missing_required`, `missing_recommended`, `next_question_en/es`
-
----
-
-## 3. Referral Flow (`/referral`)
-
-### Payload (`ReferralPayload`)
-
-```typescript
+```json
 {
-  referrerPhone?: string;
-  referredName: string;
-  referredPhone: string;
-  language: 'en' | 'es';
-  source: 'app_referral';
+  "referrerPhone": "5551234567",
+  "referredName": "Carlos Lopez",
+  "referredPhone": "5559876543",
+  "language": "es",
+  "source": "app_referral"
 }
 ```
 
-### Backend Mapping
+## 4. Transformed `intake_json` (what gets stored in `leads.intake_json`)
 
-Referrals are written to `leads` (no `referrals` table yet). The referred person becomes a lead with minimal `intake_json`:
+```json
+{
+  "insuredFullName": "Juan Perez",
+  "phone": "5551234567",
+  "garagingAddress": { "zip": "78501", "state": "TX" },
+  "contactPreference": "whatsapp",
+  "language": "es",
+  "consentToContact": true,
+  "drivers": [
+    { "fullName": "Juan Perez", "dob": "01/15/1985" }
+  ],
+  "vehicles": [
+    { "vin": "1HGBH41JXMN109186" }
+  ],
+  "coverageType": "minimum",
+  "liabilityLimits": "30/60/25"
+}
+```
 
-| UI Field | Lead column / `intake_json` field |
-|----------|----------------------------------|
-| `referredName` | `intake_json.insuredFullName` |
-| `referredPhone` | `phone` + `intake_json.phone` |
-| `language` | `language` + `intake_json.language` |
-| (auto) | `consent: false` |
-| (auto) | `status`: computed (typically `WAITING_DOCS`) |
+## 5. Lead Record (what gets inserted into `leads` table)
 
-The UI handles backend failure gracefully and continues with local flow.
+```json
+{
+  "id": "lead_1706000000_abc123",
+  "phone": "5551234567",
+  "language": "es",
+  "consent": true,
+  "intake_json": { "...see above..." },
+  "status": "READY_TO_QUOTE",
+  "can_quote": true,
+  "score": 85,
+  "missing_required": [],
+  "missing_recommended": [
+    { "fieldKey": "drivingHistory", "message": "Driving history details" }
+  ],
+  "next_question_en": null,
+  "next_question_es": null,
+  "created_at": "2025-01-23T00:00:00.000Z",
+  "updated_at": "2025-01-23T00:00:00.000Z"
+}
+```
 
----
+## 6. Communication Preferences (collected in wizard, future storage)
 
-## Texas Coverage: 30/60/25
+```json
+{
+  "contactPreference": "whatsapp",
+  "languagePref": "es",
+  "savingsThreshold": 10,
+  "wantsReminders": true,
+  "reminderChannel": "whatsapp",
+  "reminderConsent": true
+}
+```
 
-The coverage explainer modal uses the correct Texas minimum liability:
-- **$30,000** bodily injury per person
-- **$60,000** bodily injury per accident
-- **$25,000** property damage
-
-This is displayed in friendly language in both EN and ES in the quote form coverage step.
+These fields are collected in the intake wizard communication step.
+`contactPreference` and `language` are stored in the lead.
+`savingsThreshold`, `wantsReminders`, `reminderChannel` will be stored
+in user preferences once the backend schema supports them.

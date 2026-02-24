@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Platform,
   Animated,
-  Dimensions,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,14 +16,16 @@ import {
   Shield,
   ChevronRight,
   Zap,
+  Search,
+  Bell,
+  Gift,
 } from "lucide-react-native";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import TrustBadges from "@/components/TrustBadges";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/contexts/AppContext";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { SAVER } from "@/constants/theme";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -35,16 +37,8 @@ export default function HomeScreen() {
 
   const animatePress = useCallback((scale: Animated.Value) => {
     Animated.sequence([
-      Animated.timing(scale, {
-        toValue: 0.96,
-        duration: 60,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 120,
-        useNativeDriver: true,
-      }),
+      Animated.timing(scale, { toValue: 0.96, duration: 60, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -54,44 +48,62 @@ export default function HomeScreen() {
     if (isEs) {
       return {
         badge: "AHORRA HASTA 40%",
-        title: "Seguro de Auto\nMás Barato",
-        subtitle:
-          "Sube tu póliza y te buscamos mejor precio.\nSolo te contactamos si hay ahorro real.",
+        title: "Ahorra en\nSeguro de Auto",
+        subtitle: "Sube tu póliza o responde unas preguntas.\nSolo te contactamos si hay ahorro real.",
         uploadTitle: "Subir Póliza",
         uploadSub: "Página de Declaraciones o Tarjeta ID",
         uploadTag: "RÁPIDO",
+        uploadNote: "La forma más rápida",
         or: "o",
         quoteTitle: "Responde unas preguntas",
         quoteSub: "Te guiamos paso a paso — toma 2 min",
+        quoteNote: "¿No tienes tu póliza? No hay problema.",
         trust1: "Sin spam",
         trust2: "Solo si ahorras",
         trust3: "Datos seguros",
+        howTitle: "Cómo funciona",
+        step1: "Sube tu póliza o responde",
+        step1sub: "Toma menos de 2 minutos",
+        step2: "Revisamos y comparamos",
+        step2sub: "Múltiples aseguradoras a la vez",
+        step3: "Te contactamos si hay ahorro",
+        step3sub: "Solo cuando hay valor real",
+        referTitle: "¿Quieres ayudar a alguien a ahorrar?",
+        referCta: "Comparte Saver",
         agent: "¿Eres agente?",
         agentCta: "Únete aquí",
-        refer: "Refiere a un amigo",
         terms: "Términos",
-        version: "Saver v1.0",
+        privacy: "Privacidad",
       };
     }
     return {
       badge: "SAVE UP TO 40%",
-      title: "Cheaper Auto\nInsurance",
-      subtitle:
-        "Upload your policy and we find a better price.\nWe only contact you if real savings exist.",
+      title: "Save on\nAuto Insurance",
+      subtitle: "Upload your policy or answer a few questions.\nWe only contact you if real savings exist.",
       uploadTitle: "Upload Policy",
       uploadSub: "Declarations Page or ID Card",
       uploadTag: "FAST",
+      uploadNote: "Fastest way",
       or: "or",
       quoteTitle: "Answer a few questions",
       quoteSub: "We guide you step by step — takes 2 min",
+      quoteNote: "No policy photo? No problem.",
       trust1: "No spam",
       trust2: "Only if cheaper",
       trust3: "Data secure",
+      howTitle: "How it works",
+      step1: "Upload or answer",
+      step1sub: "Takes less than 2 minutes",
+      step2: "We review and compare",
+      step2sub: "Multiple carriers at once",
+      step3: "We contact you if savings exist",
+      step3sub: "Only when there's real value",
+      referTitle: "Want to help someone save too?",
+      referCta: "Share Saver",
       agent: "Are you an agent?",
       agentCta: "Join here",
-      refer: "Refer a friend",
       terms: "Terms",
-      version: "Saver v1.0",
+      privacy: "Privacy",
     };
   }, [isEs]);
 
@@ -112,22 +124,24 @@ export default function HomeScreen() {
   };
 
   const handleAgentPress = () => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync();
-    }
+    if (Platform.OS !== "web") Haptics.selectionAsync();
     router.push("/agents" as any);
   };
 
   const handleReferralPress = () => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync();
-    }
+    if (Platform.OS !== "web") Haptics.selectionAsync();
     router.push("/referral" as any);
   };
 
   const handleTermsPress = () => {
     router.push("/modal?type=terms" as any);
   };
+
+  const steps = [
+    { icon: Upload, num: "1", title: copy.step1, sub: copy.step1sub, color: SAVER.accent },
+    { icon: Search, num: "2", title: copy.step2, sub: copy.step2sub, color: SAVER.green },
+    { icon: Bell, num: "3", title: copy.step3, sub: copy.step3sub, color: SAVER.orange },
+  ];
 
   return (
     <View style={styles.root}>
@@ -137,13 +151,10 @@ export default function HomeScreen() {
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
       />
-
       <View style={styles.glowOrb} />
       <View style={styles.glowOrb2} />
 
-      <View
-        style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 16 }]}
-      >
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 16 }]}>
         <View style={styles.brandRow}>
           <View style={styles.brandIcon}>
             <Shield size={16} color="#FFFFFF" strokeWidth={2.5} />
@@ -153,36 +164,37 @@ export default function HomeScreen() {
         <LanguageSwitcher variant="pill" />
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.badgeRow}>
-          <LinearGradient
-            colors={["#00C96F", "#00A85A"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.badge}
-          >
-            <Zap size={12} color="#FFFFFF" strokeWidth={3} />
-            <Text style={styles.badgeText}>{copy.badge}</Text>
-          </LinearGradient>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroSection}>
+          <View style={styles.badgeRow}>
+            <LinearGradient
+              colors={["#00C96F", "#00A85A"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.badge}
+            >
+              <Zap size={12} color="#FFFFFF" strokeWidth={3} />
+              <Text style={styles.badgeText}>{copy.badge}</Text>
+            </LinearGradient>
+          </View>
+
+          <Text style={styles.title}>{copy.title}</Text>
+          <Text style={styles.subtitle}>{copy.subtitle}</Text>
         </View>
 
-        <Text style={styles.title}>{copy.title}</Text>
-        <Text style={styles.subtitle}>{copy.subtitle}</Text>
-
         <View style={styles.ctaSection}>
-          <Animated.View
-            style={[styles.ctaWrapper, { transform: [{ scale: uploadScale }] }]}
-          >
+          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: uploadScale }] }]}>
             <Pressable
               onPress={handleUpload}
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                pressed && { opacity: 0.92 },
-              ]}
+              style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.92 }]}
               testID="upload-policy-button"
             >
               <LinearGradient
-                colors={["#0066FF", "#0052CC"]}
+                colors={[SAVER.accent, SAVER.accentDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.primaryBtnGradient}
@@ -203,25 +215,22 @@ export default function HomeScreen() {
             </Pressable>
           </Animated.View>
 
+          <Text style={styles.noteText}>{copy.uploadNote}</Text>
+
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>{copy.or}</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          <Animated.View
-            style={[styles.ctaWrapper, { transform: [{ scale: quoteScale }] }]}
-          >
+          <Animated.View style={[styles.ctaWrapper, { transform: [{ scale: quoteScale }] }]}>
             <Pressable
               onPress={handleGetQuote}
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                pressed && { opacity: 0.92 },
-              ]}
+              style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.92 }]}
               testID="answer-questions-button"
             >
               <View style={styles.secondaryIconCircle}>
-                <MessageCircle size={18} color="#00C96F" strokeWidth={2.5} />
+                <MessageCircle size={18} color={SAVER.green} strokeWidth={2.5} />
               </View>
               <View style={styles.btnTextWrap}>
                 <Text style={styles.secondaryTitle}>{copy.quoteTitle}</Text>
@@ -230,6 +239,8 @@ export default function HomeScreen() {
               <ChevronRight size={18} color="rgba(255,255,255,0.4)" />
             </Pressable>
           </Animated.View>
+
+          <Text style={styles.noteText}>{copy.quoteNote}</Text>
         </View>
 
         <View style={styles.trustSection}>
@@ -241,43 +252,60 @@ export default function HomeScreen() {
             ]}
           />
         </View>
-      </View>
 
-      <View
-        style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}
-      >
-        <View style={styles.footerActions}>
-          <Pressable
-            onPress={handleReferralPress}
-            style={({ pressed }) => [
-              styles.referralRow,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={styles.referralLabel}>{copy.refer}</Text>
-            <ChevronRight size={14} color="rgba(255,149,0,0.6)" />
-          </Pressable>
+        <View style={styles.howSection}>
+          <Text style={styles.howTitle}>{copy.howTitle}</Text>
+          <View style={styles.stepsContainer}>
+            {steps.map((s, i) => (
+              <View key={i} style={styles.stepRow}>
+                <View style={[styles.stepNum, { backgroundColor: `${s.color}18` }]}>
+                  <Text style={[styles.stepNumText, { color: s.color }]}>{s.num}</Text>
+                </View>
+                <View style={styles.stepTextWrap}>
+                  <Text style={styles.stepTitle}>{s.title}</Text>
+                  <Text style={styles.stepSub}>{s.sub}</Text>
+                </View>
+                {i < steps.length - 1 && <View style={styles.stepConnector} />}
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <Pressable
+          onPress={handleReferralPress}
+          style={({ pressed }) => [styles.referralCard, pressed && { opacity: 0.85 }]}
+        >
+          <View style={styles.referralIconWrap}>
+            <Gift size={20} color={SAVER.orange} />
+          </View>
+          <View style={styles.referralTextWrap}>
+            <Text style={styles.referralTitle}>{copy.referTitle}</Text>
+            <Text style={styles.referralCta}>{copy.referCta}</Text>
+          </View>
+          <ChevronRight size={18} color={SAVER.orange} />
+        </Pressable>
+
+        <View style={styles.footerSection}>
           <Pressable
             onPress={handleAgentPress}
-            style={({ pressed }) => [
-              styles.agentRow,
-              pressed && { opacity: 0.7 },
-            ]}
+            style={({ pressed }) => [styles.agentRow, pressed && { opacity: 0.7 }]}
           >
             <Text style={styles.agentLabel}>{copy.agent}</Text>
             <Text style={styles.agentCta}>{copy.agentCta}</Text>
             <ChevronRight size={14} color="rgba(255,255,255,0.4)" />
           </Pressable>
-        </View>
 
-        <View style={styles.footerBottom}>
-          <Pressable onPress={handleTermsPress} hitSlop={8}>
-            <Text style={styles.footerLink}>{copy.terms}</Text>
-          </Pressable>
-          <View style={styles.footerDot} />
-          <Text style={styles.footerVersion}>{copy.version}</Text>
+          <View style={styles.footerLinks}>
+            <Pressable onPress={handleTermsPress} hitSlop={8}>
+              <Text style={styles.footerLink}>{copy.terms}</Text>
+            </Pressable>
+            <View style={styles.footerDot} />
+            <Pressable onPress={handleTermsPress} hitSlop={8}>
+              <Text style={styles.footerLink}>{copy.privacy}</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -294,7 +322,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: "#0066FF",
+    backgroundColor: SAVER.accent,
     opacity: 0.08,
   },
   glowOrb2: {
@@ -304,7 +332,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: "#00C96F",
+    backgroundColor: SAVER.green,
     opacity: 0.04,
   },
   header: {
@@ -313,6 +341,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    zIndex: 10,
   },
   brandRow: {
     flexDirection: "row",
@@ -323,7 +352,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: "#0066FF",
+    backgroundColor: SAVER.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -333,10 +362,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: -0.5,
   },
-  content: {
+  scroll: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 24,
-    justifyContent: "center",
+  },
+  heroSection: {
+    paddingTop: 20,
+    marginBottom: 28,
   },
   badgeRow: {
     flexDirection: "row",
@@ -369,10 +403,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 23,
     fontWeight: "400" as const,
-    marginBottom: 32,
   },
   ctaSection: {
-    gap: 10,
+    gap: 6,
   },
   ctaWrapper: {
     borderRadius: 16,
@@ -428,11 +461,18 @@ const styles = StyleSheet.create({
     fontWeight: "800" as const,
     letterSpacing: 1,
   },
+  noteText: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.35)",
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 4,
+  },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    marginVertical: 2,
+    marginVertical: 6,
   },
   dividerLine: {
     flex: 1,
@@ -474,32 +514,100 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   trustSection: {
-    marginTop: 28,
+    marginTop: 24,
+    marginBottom: 32,
   },
-  footer: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
+  howSection: {
+    marginBottom: 24,
   },
-  footerActions: {
-    gap: 8,
-    marginBottom: 14,
+  howTitle: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: SAVER.textSecondary,
+    letterSpacing: 0.8,
+    textTransform: "uppercase" as const,
+    marginBottom: 16,
   },
-  referralRow: {
+  stepsContainer: {
+    gap: 0,
+  },
+  stepRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+    gap: 14,
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,149,0,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,149,0,0.12)",
+    position: "relative",
   },
-  referralLabel: {
-    color: "#FF9500",
-    fontSize: 14,
+  stepNum: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNumText: {
+    fontSize: 15,
+    fontWeight: "800" as const,
+  },
+  stepTextWrap: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 15,
     fontWeight: "600" as const,
+    color: SAVER.text,
+    marginBottom: 2,
+  },
+  stepSub: {
+    fontSize: 12,
+    color: SAVER.textMuted,
+  },
+  stepConnector: {
+    position: "absolute",
+    left: 17,
+    top: 48,
+    width: 2,
+    height: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 1,
+  },
+  referralCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: SAVER.orangeLight,
+    borderWidth: 1,
+    borderColor: "rgba(255,149,0,0.15)",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+  },
+  referralIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,149,0,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  referralTextWrap: {
+    flex: 1,
+  },
+  referralTitle: {
+    fontSize: 14,
+    color: SAVER.text,
+    fontWeight: "500" as const,
+    marginBottom: 2,
+  },
+  referralCta: {
+    fontSize: 15,
+    color: SAVER.orange,
+    fontWeight: "700" as const,
+  },
+  footerSection: {
+    gap: 12,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   agentRow: {
     flexDirection: "row",
@@ -519,11 +627,11 @@ const styles = StyleSheet.create({
     fontWeight: "500" as const,
   },
   agentCta: {
-    color: "#0066FF",
+    color: SAVER.accent,
     fontSize: 14,
     fontWeight: "600" as const,
   },
-  footerBottom: {
+  footerLinks: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -541,10 +649,5 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 1.5,
     backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  footerVersion: {
-    color: "rgba(255,255,255,0.25)",
-    fontSize: 13,
-    fontWeight: "400" as const,
   },
 });

@@ -1,0 +1,25 @@
+export const SAVER = {
+  bg: '#0A1120',
+  bgGradient: ['#080E1A', '#101B2E', '#0A1322'] as const,
+  surface: '#111B2E',
+  surfaceLight: '#162035',
+  text: '#F0F4F8',
+  textSecondary: '#8B9DC3',
+  textMuted: '#5A6E8A',
+  border: '#1E2D45',
+  accent: '#0066FF',
+  accentDark: '#0052CC',
+  accentLight: 'rgba(0,102,255,0.12)',
+  green: '#00C96F',
+  greenDark: '#00A85A',
+  greenLight: 'rgba(0,201,111,0.12)',
+  error: '#FF4D6A',
+  errorLight: 'rgba(255,77,106,0.12)',
+  orange: '#FF9500',
+  orangeLight: 'rgba(255,149,0,0.12)',
+  whatsapp: '#25D366',
+  whatsappLight: 'rgba(37,211,102,0.12)',
+  white: '#FFFFFF',
+} as const;
+
+export type SaverTheme = typeof SAVER;

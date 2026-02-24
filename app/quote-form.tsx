@@ -3,25 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   Pressable,
-  KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
   ScrollView,
-  Modal,
+  KeyboardAvoidingView,
   Animated,
-  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import {
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  Globe,
-  Info,
   Phone,
   User,
   MapPin,
@@ -29,14 +20,29 @@ import {
   Shield,
   Users,
   Home,
-  CheckCircle,
   MessageCircle,
   PhoneCall,
   MessageSquare,
+  Bell,
+  Info,
+  ChevronLeft,
+  ChevronRight,
+  Check,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 import { submitQuoteForm, type ContactPreference } from '@/services/IntakeService';
+import { SAVER } from '@/constants/theme';
+import ProgressBar from '@/components/ProgressBar';
+import FormInput from '@/components/ui/FormInput';
+import PhoneInput from '@/components/ui/PhoneInput';
+import SegmentedSelector from '@/components/ui/SegmentedSelector';
+import YesNoToggle from '@/components/ui/YesNoToggle';
+import RadioCards from '@/components/ui/RadioCards';
+import ConsentCheckbox from '@/components/ui/ConsentCheckbox';
+import CoverageExplainer from '@/components/ui/CoverageExplainer';
+import SummaryRow from '@/components/ui/SummaryRow';
+import SectionHeader from '@/components/ui/SectionHeader';
 
 type WizardStep =
   | 'phone'
@@ -48,8 +54,9 @@ type WizardStep =
   | 'vin'
   | 'coverage'
   | 'discounts'
-  | 'contactPref'
-  | 'consent';
+  | 'communication'
+  | 'reminders'
+  | 'summary';
 
 interface DriverEntry {
   name: string;
@@ -69,27 +76,19 @@ interface FormData {
   insuredMonths: string | null;
   homeowner: boolean | null;
   contactPreference: ContactPreference | null;
+  languagePref: 'en' | 'es';
+  savingsThreshold: number;
   consentGiven: boolean;
+  wantsReminders: boolean | null;
+  reminderChannel: ContactPreference | null;
+  reminderConsent: boolean;
 }
 
-const DARK = {
-  bg: '#0A1120',
-  surface: '#111B2E',
-  surfaceLight: '#162035',
-  text: '#F0F4F8',
-  textSecondary: '#8B9DC3',
-  textMuted: '#5A6E8A',
-  border: '#1E2D45',
-  accent: '#0066FF',
-  accentLight: 'rgba(0,102,255,0.12)',
-  green: '#00C96F',
-  greenLight: 'rgba(0,201,111,0.12)',
-  error: '#FF4D6A',
-  errorLight: 'rgba(255,77,106,0.12)',
-  white: '#FFFFFF',
-  whatsapp: '#25D366',
-  whatsappLight: 'rgba(37,211,102,0.12)',
-};
+const STEPS: WizardStep[] = [
+  'phone', 'name', 'zip', 'driversCount', 'driverInfo',
+  'vehiclesCount', 'vin', 'coverage', 'discounts',
+  'communication', 'reminders', 'summary',
+];
 
 export default function QuoteFormScreen() {
   const { language, setLanguage, setConsentGiven: setAppConsent } = useApp();
@@ -98,1175 +97,821 @@ export default function QuoteFormScreen() {
 
   const [step, setStep] = useState<WizardStep>('phone');
   const [currentDriverIndex, setCurrentDriverIndex] = useState(0);
-  const [currentVinIndex, setCurrentVinIndex] = useState(0);
+  const [currentVehicleIndex, setCurrentVehicleIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCoverageInfo, setShowCoverageInfo] = useState(false);
-  const [formData, setFormData] = useState<FormData>({
+  const [showCoverageExplainer, setShowCoverageExplainer] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  const [form, setForm] = useState<FormData>({
     phone: '',
     fullName: '',
     zip: '',
     driversCount: 1,
     drivers: [{ name: '', dob: '' }],
     vehiclesCount: 1,
-    vins: [],
+    vins: [''],
     coverage: null,
     currentlyInsured: null,
     insuredMonths: null,
     homeowner: null,
-    contactPreference: null,
+    contactPreference: 'whatsapp',
+    languagePref: language,
+    savingsThreshold: 10,
     consentGiven: false,
+    wantsReminders: null,
+    reminderChannel: null,
+    reminderConsent: false,
   });
-  const [error, setError] = useState('');
-  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const isEs = language === 'es';
 
-  const copy = useMemo(() => {
-    if (isEs) {
-      return {
-        headerTitle: 'Obtener Cotización',
-        back: 'Atrás',
-        next: 'Siguiente',
-        submit: 'Enviar',
-        stepOf: 'de',
-        phoneTitle: '¿Cuál es tu teléfono?',
-        phoneSubtitle: 'Te contactaremos por WhatsApp o texto.',
-        phonePlaceholder: '(555) 123-4567',
-        phoneError: 'Ingresa un número de 10 dígitos',
-        nameTitle: '¿Cuál es tu nombre?',
-        nameSubtitle: 'Como aparece en tu licencia.',
-        namePlaceholder: 'Juan Pérez',
-        nameError: 'Ingresa tu nombre completo',
-        zipTitle: '¿Cuál es tu código postal?',
-        zipSubtitle: 'Donde guardas tu vehículo.',
-        zipPlaceholder: '78501',
-        zipError: 'Código postal de 5 dígitos',
-        driversCountTitle: '¿Cuántos conductores?',
-        driversCountSubtitle: 'Todos los que manejan regularmente.',
-        driverInfoTitle: (i: number, t: number) => `Conductor ${i + 1} de ${t}`,
-        driverInfoSubtitle: 'Nombre y fecha de nacimiento.',
-        driverNamePlaceholder: 'Nombre completo',
-        driverDobPlaceholder: 'MM/DD/AAAA',
-        driverNameError: 'Ingresa el nombre del conductor',
-        driverDobError: 'Ingresa fecha de nacimiento válida',
-        vehiclesCountTitle: '¿Cuántos vehículos?',
-        vehiclesCountSubtitle: 'Selecciona cuántos quieres asegurar.',
-        vinTitle: (i: number, t: number) => `VIN del vehículo ${i + 1} de ${t}`,
-        vinSubtitle: 'Encuentra el VIN en el tablero o puerta.',
-        vinPlaceholder: '1HGBH41JXMN109186',
-        vinError: 'El VIN debe tener 17 caracteres',
-        vinDuplicateError: 'Este VIN ya fue ingresado',
-        coverageTitle: '¿Qué cobertura prefieres?',
-        coverageSubtitle: 'Elige tu nivel de protección.',
-        minimumLabel: 'Mínimo (30/60/25)',
-        minimumDesc: 'Lo que exige la ley en Texas',
-        fullLabel: 'Cobertura Completa',
-        fullDesc: 'Incluye colisión y comprensivo',
-        whatIs306025: '¿Qué significa 30/60/25?',
-        coverageInfoTitle: 'Mínimo en Texas: 30/60/25',
-        coverageInfoBody: 'Texas te pide tener al menos este seguro:\n\n🏥 $30,000 — Si lastimas a una persona en un accidente, cubre sus gastos médicos.\n\n🏥🏥 $60,000 — Si hay varias personas heridas en el mismo accidente, este es el máximo total.\n\n🚗 $25,000 — Si le pegas al carro de alguien o dañas su propiedad, cubre los arreglos.\n\nEsto es solo lo mínimo que la ley exige. No protege TU carro.\n\n💡 La "Cobertura Completa" agrega protección para tu propio vehículo si chocas o si te lo roban.',
-        coverageInfoClose: 'Entendido',
-        discountsTitle: 'Descuentos',
-        discountsSubtitle: 'Esto nos ayuda a conseguirte mejor precio.',
-        currentlyInsured: '¿Tienes seguro actualmente?',
-        insuredMonths: '¿Cuántos meses de seguro continuo?',
-        months3: '3 meses',
-        months6: '6 meses',
-        months12: '12+ meses',
-        homeownerQ: '¿Eres propietario de casa?',
-        yes: 'Sí',
-        no: 'No',
-        contactPrefTitle: '¿Cómo prefieres que te contactemos?',
-        contactPrefSubtitle: 'Solo te contactamos si encontramos ahorro real.',
-        contactWhatsApp: 'WhatsApp',
-        contactWhatsAppDesc: 'Respuestas rápidas por chat',
-        contactText: 'Mensaje de texto',
-        contactTextDesc: 'Te enviamos un SMS',
-        contactCall: 'Llamada',
-        contactCallDesc: 'Un agente te llama',
-        contactPrefError: 'Selecciona cómo prefieres ser contactado',
-        consentTitle: 'Listo para cotizar',
-        consentSubtitle: 'Revisa y confirma.',
-        consentText: 'Acepto que Saver y sus agentes me contacten para cotizaciones de seguro. Solo me contactarán si encuentran ahorros reales.',
-        consentCheck: 'Acepto ser contactado',
-        submitting: 'Enviando...',
-        submitError: 'Error al enviar. Intenta de nuevo.',
-        readyStatus: 'LISTO PARA COTIZAR',
-      };
-    }
-    return {
-      headerTitle: 'Get a Quote',
-      back: 'Back',
-      next: 'Next',
-      submit: 'Submit',
-      stepOf: 'of',
-      phoneTitle: "What's your phone number?",
-      phoneSubtitle: "We'll contact you via WhatsApp or text.",
-      phonePlaceholder: '(555) 123-4567',
-      phoneError: 'Enter a valid 10-digit number',
-      nameTitle: "What's your full name?",
-      nameSubtitle: 'As it appears on your license.',
-      namePlaceholder: 'John Smith',
-      nameError: 'Enter your full name',
-      zipTitle: "What's your ZIP code?",
-      zipSubtitle: 'Where you park your vehicle.',
-      zipPlaceholder: '78501',
-      zipError: '5-digit ZIP code required',
-      driversCountTitle: 'How many drivers?',
-      driversCountSubtitle: 'Everyone who drives regularly.',
-      driverInfoTitle: (i: number, t: number) => `Driver ${i + 1} of ${t}`,
-      driverInfoSubtitle: 'Name and date of birth.',
-      driverNamePlaceholder: 'Full name',
-      driverDobPlaceholder: 'MM/DD/YYYY',
-      driverNameError: "Enter the driver's name",
-      driverDobError: 'Enter a valid date of birth',
-      vehiclesCountTitle: 'How many vehicles?',
-      vehiclesCountSubtitle: 'Select how many you want to insure.',
-      vinTitle: (i: number, t: number) => `VIN for vehicle ${i + 1} of ${t}`,
-      vinSubtitle: 'Find your VIN on the dashboard or door jamb.',
-      vinPlaceholder: '1HGBH41JXMN109186',
-      vinError: 'VIN must be exactly 17 characters',
-      vinDuplicateError: 'This VIN was already entered',
-      coverageTitle: 'What coverage do you prefer?',
-      coverageSubtitle: 'Choose your level of protection.',
-      minimumLabel: 'Minimum (30/60/25)',
-      minimumDesc: 'State required minimum in Texas',
-      fullLabel: 'Full Coverage',
-      fullDesc: 'Includes collision and comprehensive',
-      whatIs306025: 'What does 30/60/25 mean?',
-      coverageInfoTitle: 'Texas Minimum: 30/60/25',
-      coverageInfoBody: 'Texas requires you to carry at least this much insurance:\n\n🏥 $30,000 — If you hurt someone in an accident, this covers their medical bills.\n\n🏥🏥 $60,000 — If multiple people are injured in the same accident, this is the total max.\n\n🚗 $25,000 — If you damage someone\'s car or property, this covers the repairs.\n\nThis is just the legal minimum. It does NOT protect YOUR car.\n\n💡 "Full Coverage" adds protection for your own vehicle if you crash or it gets stolen.',
-      coverageInfoClose: 'Got it',
+  const t = useMemo(() => {
+    const w = isEs ? {
+      phoneTitle: 'Tu número de teléfono',
+      phoneSub: 'Solo te contactamos cuando hay algo útil.',
+      phoneHint: 'WhatsApp preferido — sin spam, nunca.',
+      nameTitle: 'Tu nombre',
+      nameSub: 'Como aparece en tu póliza o identificación.',
+      namePlaceholder: 'Nombre completo',
+      zipTitle: 'Tu código postal',
+      zipSub: 'Donde se guarda el vehículo.',
+      driversTitle: '¿Cuántos conductores?',
+      driversSub: 'Incluye a todos los conductores de la póliza.',
+      driverInfoTitle: 'Conductor {n}',
+      driverInfoSub: 'Nombre y fecha de nacimiento.',
+      driverNamePH: 'Nombre del conductor',
+      driverDobPH: 'MM/DD/AAAA',
+      vehiclesTitle: '¿Cuántos vehículos?',
+      vehiclesSub: 'Incluye todos los vehículos a asegurar.',
+      vinTitle: 'VIN del vehículo {n}',
+      vinSub: 'Encuéntralo en el tablero o puerta del conductor.',
+      vinPH: 'VIN de 17 caracteres',
+      vinSkip: 'Aún no lo tengo',
+      coverageTitle: 'Preferencia de cobertura',
+      coverageSub: '¿Qué nivel de protección quieres?',
+      coverageMin: 'Mínimo (30/60/25)',
+      coverageMinDesc: 'Mínimo legal en Texas.',
+      coverageFull: 'Cobertura Full',
+      coverageFullDesc: 'Responsabilidad + Colisión + Comprehensivo.',
+      coverageExplain: '¿Qué significa esto?',
+      discountsTitle: 'Descuentos',
+      discountsSub: 'Ayúdanos a encontrar la mejor tarifa.',
+      currentlyInsured: '¿Actualmente asegurado?',
+      insuredMonths: '¿Cuánto tiempo continuo?',
+      months3: '3+ meses', months6: '6+ meses', months12: '12+ meses',
+      homeowner: '¿Dueño de casa?',
+      commTitle: '¿Cómo te contactamos?',
+      commSub: 'Solo te contactamos cuando hay valor real.',
+      contactMethod: 'Método de contacto preferido',
+      contactWA: 'WhatsApp', contactTxt: 'Texto', contactCall: 'Llamada',
+      savingsLabel: 'Solo contáctame si puedes ahorrarme al menos',
+      langPref: 'Idioma preferido',
+      consentLabel: 'Acepto ser contactado sobre cotizaciones de seguro por mi método preferido.',
+      consentSub: 'Sin spam. Solo te contactamos cuando hay algo útil.',
+      reminderTitle: 'Recordatorios de pago',
+      reminderSub: '¿Te gustaría recibir recordatorios útiles sobre pagos y renovaciones?',
+      reminderYes: 'Sí, recuérdame',
+      reminderNo: 'Ahora no',
+      reminderChannel: 'Canal de recordatorio',
+      reminderConsent: 'Me gustaría recibir recordatorios de pago y renovación.',
+      summaryTitle: 'Revisa tu información',
+      summarySub: 'Asegúrate de que todo esté correcto.',
+      sContact: 'CONTACTO', sDrivers: 'CONDUCTORES', sVehicles: 'VEHÍCULOS',
+      sCoverage: 'COBERTURA', sDiscounts: 'DESCUENTOS', sPrefs: 'PREFERENCIAS',
+      missing: 'No proporcionado',
+      readyLabel: 'Listo para cotizar',
+      almostLabel: 'Casi listo',
+      submitBtn: 'Enviar para Cotizar',
+      submittingBtn: 'Enviando...',
+      back: 'Atrás', next: 'Siguiente', yes: 'Sí', no: 'No',
+    } : {
+      phoneTitle: 'Your phone number',
+      phoneSub: "We'll only contact you when there's something useful.",
+      phoneHint: 'WhatsApp preferred — no spam, ever.',
+      nameTitle: 'Your name',
+      nameSub: 'As it appears on your policy or ID.',
+      namePlaceholder: 'Full name',
+      zipTitle: 'Your ZIP code',
+      zipSub: 'Where the vehicle is garaged.',
+      driversTitle: 'How many drivers?',
+      driversSub: 'Include all drivers on the policy.',
+      driverInfoTitle: 'Driver {n}',
+      driverInfoSub: 'Name and date of birth.',
+      driverNamePH: 'Driver name',
+      driverDobPH: 'MM/DD/YYYY',
+      vehiclesTitle: 'How many vehicles?',
+      vehiclesSub: 'Include all vehicles to insure.',
+      vinTitle: 'Vehicle {n} VIN',
+      vinSub: 'Find it on the dashboard or driver door sticker.',
+      vinPH: '17-character VIN',
+      vinSkip: "I don't have it yet",
+      coverageTitle: 'Coverage preference',
+      coverageSub: 'What level of protection do you want?',
+      coverageMin: 'Minimum (30/60/25)',
+      coverageMinDesc: 'Texas legal minimum liability.',
+      coverageFull: 'Full Coverage',
+      coverageFullDesc: 'Liability + Collision + Comprehensive.',
+      coverageExplain: 'What does this mean?',
       discountsTitle: 'Discounts',
-      discountsSubtitle: 'This helps us get you a better rate.',
-      currentlyInsured: 'Are you currently insured?',
-      insuredMonths: 'How many months of continuous insurance?',
-      months3: '3 months',
-      months6: '6 months',
-      months12: '12+ months',
-      homeownerQ: 'Are you a homeowner?',
-      yes: 'Yes',
-      no: 'No',
-      contactPrefTitle: 'How should we contact you?',
-      contactPrefSubtitle: 'We only reach out if we find real savings.',
-      contactWhatsApp: 'WhatsApp',
-      contactWhatsAppDesc: 'Quick chat replies',
-      contactText: 'Text Message',
-      contactTextDesc: 'We send you an SMS',
-      contactCall: 'Phone Call',
-      contactCallDesc: 'An agent calls you',
-      contactPrefError: 'Choose how you prefer to be contacted',
-      consentTitle: 'Ready to quote',
-      consentSubtitle: 'Review and confirm.',
-      consentText: 'I agree that Saver and its partner agents may contact me for insurance quotes. They will only contact me if real savings are found.',
-      consentCheck: 'I agree to be contacted',
-      submitting: 'Submitting...',
-      submitError: 'Failed to submit. Please try again.',
-      readyStatus: 'READY TO QUOTE',
+      discountsSub: 'Help us find the best rate.',
+      currentlyInsured: 'Currently insured?',
+      insuredMonths: 'How long continuously?',
+      months3: '3+ months', months6: '6+ months', months12: '12+ months',
+      homeowner: 'Homeowner?',
+      commTitle: 'How should we reach you?',
+      commSub: "We only contact you when there's real value.",
+      contactMethod: 'Preferred contact method',
+      contactWA: 'WhatsApp', contactTxt: 'Text', contactCall: 'Call',
+      savingsLabel: 'Only contact me if you can save me at least',
+      langPref: 'Preferred language',
+      consentLabel: 'I agree to be contacted about insurance quotes via my preferred method.',
+      consentSub: 'No spam. We only reach out when there\'s something useful.',
+      reminderTitle: 'Payment reminders',
+      reminderSub: 'Would you like helpful reminders about payments and renewals?',
+      reminderYes: 'Yes, remind me',
+      reminderNo: 'Not now',
+      reminderChannel: 'Reminder channel',
+      reminderConsent: "I'd like to receive payment and renewal reminders.",
+      summaryTitle: 'Review your info',
+      summarySub: 'Make sure everything looks correct.',
+      sContact: 'CONTACT', sDrivers: 'DRIVERS', sVehicles: 'VEHICLES',
+      sCoverage: 'COVERAGE', sDiscounts: 'DISCOUNTS', sPrefs: 'PREFERENCES',
+      missing: 'Not provided',
+      readyLabel: 'Ready to quote',
+      almostLabel: 'Almost ready',
+      submitBtn: 'Submit for Quotes',
+      submittingBtn: 'Submitting...',
+      back: 'Back', next: 'Next', yes: 'Yes', no: 'No',
     };
+    return w;
   }, [isEs]);
 
-  const steps = useMemo<WizardStep[]>(
-    () => [
-      'phone',
-      'name',
-      'zip',
-      'driversCount',
-      'driverInfo',
-      'vehiclesCount',
-      'vin',
-      'coverage',
-      'discounts',
-      'contactPref',
-      'consent',
-    ],
-    []
-  );
-  const currentStepIndex = steps.indexOf(step);
-  const totalSteps = steps.length;
+  const stepIndex = STEPS.indexOf(step);
+  const totalSteps = STEPS.length;
+  const progress = (stepIndex + 1) / totalSteps;
 
-  const toggleLanguage = useCallback(() => {
-    setLanguage(isEs ? 'en' : 'es');
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  }, [isEs, setLanguage]);
+  const updateForm = useCallback(<K extends keyof FormData>(key: K, value: FormData[K]) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+  }, []);
 
-  const animateSlide = useCallback(
-    (direction: 'forward' | 'back') => {
-      slideAnim.setValue(direction === 'forward' ? 40 : -40);
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    },
-    [slideAnim]
-  );
+  const animateSlide = useCallback((direction: 'forward' | 'back') => {
+    slideAnim.setValue(direction === 'forward' ? 40 : -40);
+    Animated.timing(slideAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+  }, [slideAnim]);
 
-  const validateCurrentStep = useCallback((): boolean => {
-    setError('');
-    switch (step) {
-      case 'phone': {
-        const digits = formData.phone.replace(/\D/g, '');
-        if (digits.length !== 10) {
-          setError(copy.phoneError);
-          return false;
-        }
-        return true;
-      }
-      case 'name':
-        if (formData.fullName.trim().length < 2) {
-          setError(copy.nameError);
-          return false;
-        }
-        return true;
-      case 'zip': {
-        const zipDigits = formData.zip.replace(/\D/g, '');
-        if (zipDigits.length !== 5) {
-          setError(copy.zipError);
-          return false;
-        }
-        return true;
-      }
-      case 'driversCount':
-        return formData.driversCount >= 1 && formData.driversCount <= 4;
-      case 'driverInfo': {
-        const d = formData.drivers[currentDriverIndex];
-        if (!d || d.name.trim().length < 2) {
-          setError(copy.driverNameError);
-          return false;
-        }
-        const dobRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/(19|20)\d{2}$/;
-        if (!dobRegex.test(d.dob)) {
-          setError(copy.driverDobError);
-          return false;
-        }
-        return true;
-      }
-      case 'vehiclesCount':
-        return formData.vehiclesCount >= 1 && formData.vehiclesCount <= 4;
-      case 'vin': {
-        const currentVin = formData.vins[currentVinIndex] || '';
-        const cleanVin = currentVin.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (cleanVin.length !== 17) {
-          setError(copy.vinError);
-          return false;
-        }
-        const otherVins = formData.vins.filter((_, i) => i !== currentVinIndex);
-        if (otherVins.includes(cleanVin)) {
-          setError(copy.vinDuplicateError);
-          return false;
-        }
-        return true;
-      }
-      case 'coverage':
-        return formData.coverage !== null;
-      case 'discounts':
-        return true;
-      case 'contactPref':
-        if (!formData.contactPreference) {
-          setError(copy.contactPrefError);
-          return false;
-        }
-        return true;
-      case 'consent':
-        return formData.consentGiven;
-      default:
-        return true;
-    }
-  }, [step, formData, currentDriverIndex, currentVinIndex, copy]);
-
-  const goNext = useCallback(() => {
-    if (!validateCurrentStep()) return;
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    if (step === 'driversCount') {
-      const newDrivers = [...formData.drivers];
-      while (newDrivers.length < formData.driversCount) {
-        newDrivers.push({ name: '', dob: '' });
-      }
-      setFormData((prev) => ({
-        ...prev,
-        drivers: newDrivers.slice(0, formData.driversCount),
-      }));
-      setCurrentDriverIndex(0);
-    }
-
-    if (step === 'driverInfo') {
-      if (currentDriverIndex < formData.driversCount - 1) {
-        setCurrentDriverIndex(currentDriverIndex + 1);
-        animateSlide('forward');
-        setError('');
-        return;
-      }
-    }
-
-    if (step === 'vin') {
-      const cleanVin = (formData.vins[currentVinIndex] || '')
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '');
-      const updatedVins = [...formData.vins];
-      updatedVins[currentVinIndex] = cleanVin;
-      setFormData((prev) => ({ ...prev, vins: updatedVins }));
-      if (currentVinIndex < formData.vehiclesCount - 1) {
-        setCurrentVinIndex(currentVinIndex + 1);
-        animateSlide('forward');
-        setError('');
-        return;
-      }
-    }
-
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setStep(steps[nextIndex]);
-      setError('');
-      animateSlide('forward');
-    }
-  }, [
-    step,
-    currentStepIndex,
-    steps,
-    formData,
-    currentDriverIndex,
-    currentVinIndex,
-    validateCurrentStep,
-    animateSlide,
-  ]);
+  const goForward = useCallback((nextStep: WizardStep) => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animateSlide('forward');
+    setStep(nextStep);
+  }, [animateSlide]);
 
   const goBack = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    if (step === 'driverInfo' && currentDriverIndex > 0) {
-      setCurrentDriverIndex(currentDriverIndex - 1);
-      setError('');
-      animateSlide('back');
-      return;
-    }
-
-    if (step === 'vin' && currentVinIndex > 0) {
-      setCurrentVinIndex(currentVinIndex - 1);
-      setError('');
-      animateSlide('back');
-      return;
-    }
-
-    const prevIndex = currentStepIndex - 1;
-    if (prevIndex >= 0) {
-      setStep(steps[prevIndex]);
-      setError('');
-      animateSlide('back');
-      if (steps[prevIndex] === 'driverInfo') {
-        setCurrentDriverIndex(formData.driversCount - 1);
-      }
-      if (steps[prevIndex] === 'vin') {
-        setCurrentVinIndex(formData.vehiclesCount - 1);
-      }
-    } else {
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+    animateSlide('back');
+    const idx = STEPS.indexOf(step);
+    if (idx <= 0) {
       router.back();
+      return;
     }
-  }, [
-    step,
-    currentStepIndex,
-    steps,
-    currentDriverIndex,
-    currentVinIndex,
-    formData.driversCount,
-    formData.vehiclesCount,
-    router,
-    animateSlide,
-  ]);
+    const prevStep = STEPS[idx - 1];
+    if (prevStep === 'driverInfo') setCurrentDriverIndex(form.driversCount - 1);
+    if (prevStep === 'vin') setCurrentVehicleIndex(form.vehiclesCount - 1);
+    setStep(prevStep);
+  }, [step, form.driversCount, form.vehiclesCount, animateSlide, router]);
+
+  const handleNext = useCallback(() => {
+    switch (step) {
+      case 'phone': {
+        const digits = form.phone.replace(/\D/g, '');
+        if (digits.length < 10) {
+          Alert.alert(isEs ? 'Teléfono inválido' : 'Invalid phone', isEs ? 'Ingresa un número de 10 dígitos.' : 'Please enter a 10-digit number.');
+          return;
+        }
+        goForward('name');
+        break;
+      }
+      case 'name':
+        if (form.fullName.trim().length < 2) {
+          Alert.alert(isEs ? 'Nombre requerido' : 'Name required', isEs ? 'Ingresa tu nombre completo.' : 'Please enter your full name.');
+          return;
+        }
+        goForward('zip');
+        break;
+      case 'zip':
+        if (form.zip.replace(/\D/g, '').length < 5) {
+          Alert.alert(isEs ? 'ZIP inválido' : 'Invalid ZIP', isEs ? 'Ingresa un código postal de 5 dígitos.' : 'Please enter a 5-digit ZIP code.');
+          return;
+        }
+        goForward('driversCount');
+        break;
+      case 'driversCount':
+        goForward('driverInfo');
+        break;
+      case 'driverInfo':
+        if (currentDriverIndex < form.driversCount - 1) {
+          setCurrentDriverIndex(prev => prev + 1);
+          animateSlide('forward');
+        } else {
+          setCurrentDriverIndex(0);
+          goForward('vehiclesCount');
+        }
+        break;
+      case 'vehiclesCount':
+        goForward('vin');
+        break;
+      case 'vin':
+        if (currentVehicleIndex < form.vehiclesCount - 1) {
+          setCurrentVehicleIndex(prev => prev + 1);
+          animateSlide('forward');
+        } else {
+          setCurrentVehicleIndex(0);
+          goForward('coverage');
+        }
+        break;
+      case 'coverage':
+        if (!form.coverage) {
+          Alert.alert(isEs ? 'Elige cobertura' : 'Choose coverage', isEs ? 'Selecciona un tipo de cobertura.' : 'Please select a coverage type.');
+          return;
+        }
+        goForward('discounts');
+        break;
+      case 'discounts':
+        goForward('communication');
+        break;
+      case 'communication':
+        if (!form.consentGiven) {
+          Alert.alert(isEs ? 'Consentimiento requerido' : 'Consent required', isEs ? 'Acepta los términos para continuar.' : 'Please accept the terms to continue.');
+          return;
+        }
+        goForward('reminders');
+        break;
+      case 'reminders':
+        goForward('summary');
+        break;
+      case 'summary':
+        handleSubmit();
+        break;
+    }
+  }, [step, form, currentDriverIndex, currentVehicleIndex, goForward, animateSlide, isEs]);
 
   const handleSubmit = useCallback(async () => {
-    if (!validateCurrentStep()) return;
+    if (isSubmitting) return;
     setIsSubmitting(true);
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setAppConsent(true);
 
+    console.log('[QuoteForm] Submitting form data...');
     try {
       const result = await submitQuoteForm({
-        phone: formData.phone,
-        fullName: formData.fullName,
-        zip: formData.zip,
-        drivers: formData.drivers,
-        vehiclesCount: formData.vehiclesCount,
-        vins: formData.vins,
-        coverage: formData.coverage!,
-        currentlyInsured: formData.currentlyInsured,
-        insuredMonths: formData.insuredMonths,
-        homeowner: formData.homeowner,
-        contactPreference: formData.contactPreference || 'whatsapp',
-        language: isEs ? 'es' : 'en',
-        consentGiven: formData.consentGiven,
+        phone: form.phone,
+        fullName: form.fullName,
+        zip: form.zip,
+        drivers: form.drivers.filter(d => d.name.trim()),
+        vehiclesCount: form.vehiclesCount,
+        vins: form.vins.filter(v => v.trim()),
+        coverage: form.coverage || 'minimum',
+        currentlyInsured: form.currentlyInsured,
+        insuredMonths: form.insuredMonths,
+        homeowner: form.homeowner,
+        contactPreference: form.contactPreference || 'whatsapp',
+        language: form.languagePref,
+        consentGiven: form.consentGiven,
       });
 
-      if (!result.success) {
-        console.error('[QUOTE_FORM] Submit error:', result.error);
-        setIsSubmitting(false);
-        Alert.alert(isEs ? 'Error' : 'Error', copy.submitError);
-        return;
-      }
-
-      console.log('[QUOTE_FORM] Lead submitted successfully');
-      setAppConsent(true);
-      router.push('/quote-submitted' as any);
-    } catch (err: any) {
-      console.error('[QUOTE_FORM] Submit failed:', err);
+      console.log('[QuoteForm] Submit result:', result);
+      router.replace('/quote-submitted' as any);
+    } catch (err) {
+      console.error('[QuoteForm] Submit error:', err);
+      Alert.alert(
+        isEs ? 'Error' : 'Error',
+        isEs ? 'No pudimos enviar tu solicitud. Intenta de nuevo.' : "We couldn't submit your request. Please try again."
+      );
+    } finally {
       setIsSubmitting(false);
-      Alert.alert(isEs ? 'Error' : 'Error', err?.message || copy.submitError);
     }
-  }, [formData, isEs, validateCurrentStep, setAppConsent, router, copy.submitError]);
+  }, [form, isSubmitting, isEs, router, setAppConsent]);
 
-  const updateDriver = useCallback(
-    (field: 'name' | 'dob', value: string) => {
-      const updated = [...formData.drivers];
-      if (!updated[currentDriverIndex]) {
-        updated[currentDriverIndex] = { name: '', dob: '' };
-      }
-      updated[currentDriverIndex] = { ...updated[currentDriverIndex], [field]: value };
-      setFormData((prev) => ({ ...prev, drivers: updated }));
-      setError('');
-    },
-    [currentDriverIndex, formData.drivers]
-  );
+  const updateDriver = useCallback((index: number, field: keyof DriverEntry, value: string) => {
+    setForm(prev => {
+      const drivers = [...prev.drivers];
+      drivers[index] = { ...drivers[index], [field]: value };
+      return { ...prev, drivers };
+    });
+  }, []);
 
-  const updateVin = useCallback(
-    (text: string) => {
-      const updatedVins = [...formData.vins];
-      updatedVins[currentVinIndex] = text.toUpperCase();
-      setFormData((prev) => ({ ...prev, vins: updatedVins }));
-      setError('');
-    },
-    [currentVinIndex, formData.vins]
-  );
+  const updateVin = useCallback((index: number, value: string) => {
+    setForm(prev => {
+      const vins = [...prev.vins];
+      vins[index] = value.toUpperCase();
+      return { ...prev, vins };
+    });
+  }, []);
 
-  const getStepIcon = (s: WizardStep) => {
-    const iconProps = { size: 20, color: DARK.accent, strokeWidth: 2 };
-    switch (s) {
-      case 'phone':
-        return <Phone {...iconProps} />;
-      case 'name':
-        return <User {...iconProps} />;
-      case 'zip':
-        return <MapPin {...iconProps} />;
-      case 'driversCount':
-      case 'driverInfo':
-        return <Users {...iconProps} />;
-      case 'vehiclesCount':
-      case 'vin':
-        return <Car {...iconProps} />;
-      case 'coverage':
-        return <Shield {...iconProps} />;
-      case 'discounts':
-        return <Home {...iconProps} />;
-      case 'contactPref':
-        return <MessageCircle {...iconProps} />;
-      case 'consent':
-        return <CheckCircle {...iconProps} />;
-      default:
-        return null;
+  const setDriversCount = useCallback((count: number) => {
+    setForm(prev => {
+      const drivers = [...prev.drivers];
+      while (drivers.length < count) drivers.push({ name: '', dob: '' });
+      return { ...prev, driversCount: count, drivers: drivers.slice(0, count) };
+    });
+    setCurrentDriverIndex(0);
+  }, []);
+
+  const setVehiclesCount = useCallback((count: number) => {
+    setForm(prev => {
+      const vins = [...prev.vins];
+      while (vins.length < count) vins.push('');
+      return { ...prev, vehiclesCount: count, vins: vins.slice(0, count) };
+    });
+    setCurrentVehicleIndex(0);
+  }, []);
+
+  const canProceed = useMemo(() => {
+    switch (step) {
+      case 'phone': return form.phone.replace(/\D/g, '').length >= 10;
+      case 'name': return form.fullName.trim().length >= 2;
+      case 'zip': return form.zip.replace(/\D/g, '').length >= 5;
+      case 'driversCount': return true;
+      case 'driverInfo': return form.drivers[currentDriverIndex]?.name.trim().length >= 2;
+      case 'vehiclesCount': return true;
+      case 'vin': return true;
+      case 'coverage': return form.coverage !== null;
+      case 'discounts': return true;
+      case 'communication': return form.consentGiven;
+      case 'reminders': return form.wantsReminders !== null;
+      case 'summary': return true;
+      default: return false;
     }
-  };
+  }, [step, form, currentDriverIndex]);
+
+  const isReadyToQuote = useMemo(() => {
+    const hasPhone = form.phone.replace(/\D/g, '').length >= 10;
+    const hasName = form.fullName.trim().length >= 2;
+    const hasZip = form.zip.replace(/\D/g, '').length >= 5;
+    const hasCoverage = form.coverage !== null;
+    const hasDriver = form.drivers.some(d => d.name.trim().length >= 2);
+    return hasPhone && hasName && hasZip && hasCoverage && hasDriver;
+  }, [form]);
 
   const renderStepContent = () => {
     switch (step) {
       case 'phone':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('phone')}</View>
-            <Text style={styles.stepTitle}>{copy.phoneTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.phoneSubtitle}</Text>
-            <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder={copy.phonePlaceholder}
-              placeholderTextColor={DARK.textMuted}
-              value={formData.phone}
-              onChangeText={(text) => {
-                setFormData((prev) => ({ ...prev, phone: text }));
-                setError('');
-              }}
-              keyboardType="phone-pad"
-              autoFocus
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.whatsapp}18` }]}>
+                <Phone size={22} color={SAVER.whatsapp} />
+              </View>
+            </View>
+            <Text style={styles.stepTitle}>{t.phoneTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.phoneSub}</Text>
+            <PhoneInput
+              value={form.phone}
+              onChangeText={(v) => updateForm('phone', v)}
+              hint={t.phoneHint}
               testID="phone-input"
             />
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         );
 
       case 'name':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('name')}</View>
-            <Text style={styles.stepTitle}>{copy.nameTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.nameSubtitle}</Text>
-            <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder={copy.namePlaceholder}
-              placeholderTextColor={DARK.textMuted}
-              value={formData.fullName}
-              onChangeText={(text) => {
-                setFormData((prev) => ({ ...prev, fullName: text }));
-                setError('');
-              }}
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.accent}18` }]}>
+                <User size={22} color={SAVER.accent} />
+              </View>
+            </View>
+            <Text style={styles.stepTitle}>{t.nameTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.nameSub}</Text>
+            <FormInput
+              value={form.fullName}
+              onChangeText={(v) => updateForm('fullName', v)}
+              placeholder={t.namePlaceholder}
               autoCapitalize="words"
-              autoFocus
               testID="name-input"
             />
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         );
 
       case 'zip':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('zip')}</View>
-            <Text style={styles.stepTitle}>{copy.zipTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.zipSubtitle}</Text>
-            <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder={copy.zipPlaceholder}
-              placeholderTextColor={DARK.textMuted}
-              value={formData.zip}
-              onChangeText={(text) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  zip: text.replace(/\D/g, '').slice(0, 5),
-                }));
-                setError('');
-              }}
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.green}18` }]}>
+                <MapPin size={22} color={SAVER.green} />
+              </View>
+            </View>
+            <Text style={styles.stepTitle}>{t.zipTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.zipSub}</Text>
+            <FormInput
+              value={form.zip}
+              onChangeText={(v) => updateForm('zip', v.replace(/\D/g, '').slice(0, 5))}
+              placeholder="78501"
               keyboardType="number-pad"
               maxLength={5}
-              autoFocus
               testID="zip-input"
             />
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         );
 
       case 'driversCount':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('driversCount')}</View>
-            <Text style={styles.stepTitle}>{copy.driversCountTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.driversCountSubtitle}</Text>
-            <View style={styles.countSelector}>
-              {[1, 2, 3].map((count) => {
-                const label = count === 3 ? '3+' : `${count}`;
-                return (
-                  <Pressable
-                    key={count}
-                    style={[
-                      styles.countOption,
-                      formData.driversCount === count && styles.countOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setFormData((prev) => ({ ...prev, driversCount: count }));
-                      if (Platform.OS !== 'web') Haptics.selectionAsync();
-                    }}
-                    testID={`driver-count-${count}`}
-                  >
-                    <Text
-                      style={[
-                        styles.countText,
-                        formData.driversCount === count && styles.countTextSelected,
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.accent}18` }]}>
+                <Users size={22} color={SAVER.accent} />
+              </View>
             </View>
+            <Text style={styles.stepTitle}>{t.driversTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.driversSub}</Text>
+            <SegmentedSelector
+              options={[
+                { value: '1', label: '1' },
+                { value: '2', label: '2' },
+                { value: '3', label: '3+' },
+              ]}
+              value={String(form.driversCount)}
+              onSelect={(v) => setDriversCount(parseInt(v))}
+            />
           </View>
         );
 
       case 'driverInfo':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('driverInfo')}</View>
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.accent}18` }]}>
+                <User size={22} color={SAVER.accent} />
+              </View>
+            </View>
             <Text style={styles.stepTitle}>
-              {copy.driverInfoTitle(currentDriverIndex, formData.driversCount)}
+              {t.driverInfoTitle.replace('{n}', String(currentDriverIndex + 1))}
             </Text>
-            <Text style={styles.stepSubtitle}>{copy.driverInfoSubtitle}</Text>
-            <TextInput
-              style={[styles.input, error && error.includes(copy.driverNameError) ? styles.inputError : null]}
-              placeholder={copy.driverNamePlaceholder}
-              placeholderTextColor={DARK.textMuted}
-              value={formData.drivers[currentDriverIndex]?.name || ''}
-              onChangeText={(text) => updateDriver('name', text)}
+            <Text style={styles.stepSubtitle}>{t.driverInfoSub}</Text>
+            <FormInput
+              label={isEs ? 'Nombre' : 'Name'}
+              value={form.drivers[currentDriverIndex]?.name || ''}
+              onChangeText={(v) => updateDriver(currentDriverIndex, 'name', v)}
+              placeholder={t.driverNamePH}
               autoCapitalize="words"
-              autoFocus
-              testID={`driver-name-${currentDriverIndex}`}
+              testID="driver-name-input"
             />
-            <View style={styles.inputSpacer} />
-            <TextInput
-              style={[styles.input, error && error.includes(copy.driverDobError) ? styles.inputError : null]}
-              placeholder={copy.driverDobPlaceholder}
-              placeholderTextColor={DARK.textMuted}
-              value={formData.drivers[currentDriverIndex]?.dob || ''}
-              onChangeText={(text) => {
-                let formatted = text.replace(/[^\d/]/g, '');
-                if (formatted.length === 2 && !formatted.includes('/')) {
-                  formatted += '/';
-                } else if (formatted.length === 5 && formatted.split('/').length === 2) {
-                  formatted += '/';
-                }
-                updateDriver('dob', formatted.slice(0, 10));
-              }}
+            <FormInput
+              label={isEs ? 'Fecha de nacimiento' : 'Date of birth'}
+              value={form.drivers[currentDriverIndex]?.dob || ''}
+              onChangeText={(v) => updateDriver(currentDriverIndex, 'dob', v)}
+              placeholder={t.driverDobPH}
               keyboardType="number-pad"
-              maxLength={10}
-              testID={`driver-dob-${currentDriverIndex}`}
+              testID="driver-dob-input"
             />
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         );
 
       case 'vehiclesCount':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('vehiclesCount')}</View>
-            <Text style={styles.stepTitle}>{copy.vehiclesCountTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.vehiclesCountSubtitle}</Text>
-            <View style={styles.countSelector}>
-              {[1, 2, 3, 4].map((count) => (
-                <Pressable
-                  key={count}
-                  style={[
-                    styles.countOption,
-                    formData.vehiclesCount === count && styles.countOptionSelected,
-                  ]}
-                  onPress={() => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      vehiclesCount: count,
-                      vins: prev.vins.slice(0, count),
-                    }));
-                    if (Platform.OS !== 'web') Haptics.selectionAsync();
-                  }}
-                  testID={`vehicle-count-${count}`}
-                >
-                  <Text
-                    style={[
-                      styles.countText,
-                      formData.vehiclesCount === count && styles.countTextSelected,
-                    ]}
-                  >
-                    {count}
-                  </Text>
-                </Pressable>
-              ))}
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.green}18` }]}>
+                <Car size={22} color={SAVER.green} />
+              </View>
             </View>
+            <Text style={styles.stepTitle}>{t.vehiclesTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.vehiclesSub}</Text>
+            <SegmentedSelector
+              options={[
+                { value: '1', label: '1' },
+                { value: '2', label: '2' },
+                { value: '3', label: '3+' },
+              ]}
+              value={String(form.vehiclesCount)}
+              onSelect={(v) => setVehiclesCount(parseInt(v))}
+            />
           </View>
         );
 
       case 'vin':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('vin')}</View>
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.green}18` }]}>
+                <Car size={22} color={SAVER.green} />
+              </View>
+            </View>
             <Text style={styles.stepTitle}>
-              {copy.vinTitle(currentVinIndex, formData.vehiclesCount)}
+              {t.vinTitle.replace('{n}', String(currentVehicleIndex + 1))}
             </Text>
-            <Text style={styles.stepSubtitle}>{copy.vinSubtitle}</Text>
-            <TextInput
-              style={[styles.input, styles.vinInput, error ? styles.inputError : null]}
-              placeholder={copy.vinPlaceholder}
-              placeholderTextColor={DARK.textMuted}
-              value={formData.vins[currentVinIndex] || ''}
-              onChangeText={updateVin}
+            <Text style={styles.stepSubtitle}>{t.vinSub}</Text>
+            <FormInput
+              value={form.vins[currentVehicleIndex] || ''}
+              onChangeText={(v) => updateVin(currentVehicleIndex, v)}
+              placeholder={t.vinPH}
               autoCapitalize="characters"
               maxLength={17}
-              autoFocus
-              testID={`vin-input-${currentVinIndex}`}
+              testID="vin-input"
             />
-            <Text style={styles.vinCounter}>
-              {(formData.vins[currentVinIndex] || '').replace(/[^A-Z0-9]/gi, '').length}
-              /17
-            </Text>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <Pressable
+              onPress={() => updateVin(currentVehicleIndex, '')}
+              style={styles.skipLink}
+            >
+              <Text style={styles.skipLinkText}>{t.vinSkip}</Text>
+            </Pressable>
           </View>
         );
 
       case 'coverage':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('coverage')}</View>
-            <Text style={styles.stepTitle}>{copy.coverageTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.coverageSubtitle}</Text>
-            <View style={styles.coverageOptions}>
-              <Pressable
-                style={[
-                  styles.coverageCard,
-                  formData.coverage === 'minimum' && styles.coverageCardSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, coverage: 'minimum' }));
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-                testID="coverage-minimum"
-              >
-                <View style={styles.coverageHeader}>
-                  <Text
-                    style={[
-                      styles.coverageLabel,
-                      formData.coverage === 'minimum' && styles.coverageLabelSelected,
-                    ]}
-                  >
-                    {copy.minimumLabel}
-                  </Text>
-                  {formData.coverage === 'minimum' && (
-                    <View style={styles.checkCircle}>
-                      <Check size={14} color="#FFFFFF" strokeWidth={3} />
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.coverageDesc}>{copy.minimumDesc}</Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.coverageCard,
-                  formData.coverage === 'full' && styles.coverageCardSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, coverage: 'full' }));
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-                testID="coverage-full"
-              >
-                <View style={styles.coverageHeader}>
-                  <Text
-                    style={[
-                      styles.coverageLabel,
-                      formData.coverage === 'full' && styles.coverageLabelSelected,
-                    ]}
-                  >
-                    {copy.fullLabel}
-                  </Text>
-                  {formData.coverage === 'full' && (
-                    <View style={styles.checkCircle}>
-                      <Check size={14} color="#FFFFFF" strokeWidth={3} />
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.coverageDesc}>{copy.fullDesc}</Text>
-              </Pressable>
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.accent}18` }]}>
+                <Shield size={22} color={SAVER.accent} />
+              </View>
             </View>
-
+            <Text style={styles.stepTitle}>{t.coverageTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.coverageSub}</Text>
+            <RadioCards
+              options={[
+                {
+                  value: 'minimum',
+                  label: t.coverageMin,
+                  description: t.coverageMinDesc,
+                  icon: <Shield size={18} color={SAVER.textSecondary} />,
+                  badge: 'TX MIN',
+                },
+                {
+                  value: 'full',
+                  label: t.coverageFull,
+                  description: t.coverageFullDesc,
+                  icon: <Shield size={18} color={SAVER.accent} />,
+                },
+              ]}
+              value={form.coverage}
+              onSelect={(v) => updateForm('coverage', v as 'minimum' | 'full')}
+            />
             <Pressable
-              style={styles.infoLink}
-              onPress={() => setShowCoverageInfo(true)}
+              onPress={() => setShowCoverageExplainer(true)}
+              style={styles.explainLink}
             >
-              <Info size={14} color={DARK.accent} />
-              <Text style={styles.infoLinkText}>{copy.whatIs306025}</Text>
+              <Info size={14} color={SAVER.accent} />
+              <Text style={styles.explainLinkText}>{t.coverageExplain}</Text>
             </Pressable>
           </View>
         );
 
       case 'discounts':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('discounts')}</View>
-            <Text style={styles.stepTitle}>{copy.discountsTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.discountsSubtitle}</Text>
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.orange}18` }]}>
+                <Home size={22} color={SAVER.orange} />
+              </View>
+            </View>
+            <Text style={styles.stepTitle}>{t.discountsTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.discountsSub}</Text>
+            <YesNoToggle
+              label={t.currentlyInsured}
+              value={form.currentlyInsured}
+              onSelect={(v) => updateForm('currentlyInsured', v)}
+              yesLabel={t.yes}
+              noLabel={t.no}
+            />
+            {form.currentlyInsured && (
+              <SegmentedSelector
+                label={t.insuredMonths}
+                options={[
+                  { value: '3', label: t.months3 },
+                  { value: '6', label: t.months6 },
+                  { value: '12', label: t.months12 },
+                ]}
+                value={form.insuredMonths}
+                onSelect={(v) => updateForm('insuredMonths', v)}
+              />
+            )}
+            <YesNoToggle
+              label={t.homeowner}
+              value={form.homeowner}
+              onSelect={(v) => updateForm('homeowner', v)}
+              yesLabel={t.yes}
+              noLabel={t.no}
+            />
+          </View>
+        );
 
-            <Text style={styles.fieldLabel}>{copy.currentlyInsured}</Text>
-            <View style={styles.yesNoRow}>
-              <Pressable
-                style={[
-                  styles.yesNoBtn,
-                  formData.currentlyInsured === true && styles.yesNoBtnSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, currentlyInsured: true }));
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.yesNoText,
-                    formData.currentlyInsured === true && styles.yesNoTextSelected,
-                  ]}
-                >
-                  {copy.yes}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.yesNoBtn,
-                  formData.currentlyInsured === false && styles.yesNoBtnSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    currentlyInsured: false,
-                    insuredMonths: null,
-                  }));
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.yesNoText,
-                    formData.currentlyInsured === false && styles.yesNoTextSelected,
-                  ]}
-                >
-                  {copy.no}
-                </Text>
-              </Pressable>
+      case 'communication':
+        return (
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.whatsapp}18` }]}>
+                <MessageCircle size={22} color={SAVER.whatsapp} />
+              </View>
+            </View>
+            <Text style={styles.stepTitle}>{t.commTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.commSub}</Text>
+
+            <RadioCards
+              label={t.contactMethod}
+              options={[
+                { value: 'whatsapp', label: t.contactWA, icon: <MessageCircle size={16} color={SAVER.whatsapp} /> },
+                { value: 'text', label: t.contactTxt, icon: <MessageSquare size={16} color={SAVER.accent} /> },
+                { value: 'call', label: t.contactCall, icon: <PhoneCall size={16} color={SAVER.orange} /> },
+              ]}
+              value={form.contactPreference}
+              onSelect={(v) => updateForm('contactPreference', v as ContactPreference)}
+            />
+
+            <View style={styles.savingsRow}>
+              <Text style={styles.savingsLabel}>{t.savingsLabel}</Text>
+              <View style={styles.savingsSelector}>
+                {[5, 10, 15, 20].map(n => (
+                  <Pressable
+                    key={n}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') Haptics.selectionAsync();
+                      updateForm('savingsThreshold', n);
+                    }}
+                    style={[styles.savingsChip, form.savingsThreshold === n && styles.savingsChipActive]}
+                  >
+                    <Text style={[styles.savingsChipText, form.savingsThreshold === n && styles.savingsChipTextActive]}>
+                      {n}%
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
-            {formData.currentlyInsured === true && (
+            <SegmentedSelector
+              label={t.langPref}
+              options={[
+                { value: 'en', label: 'English' },
+                { value: 'es', label: 'Español' },
+              ]}
+              value={form.languagePref}
+              onSelect={(v) => {
+                updateForm('languagePref', v as 'en' | 'es');
+                setLanguage(v as 'en' | 'es');
+              }}
+            />
+
+            <View style={styles.consentSection}>
+              <ConsentCheckbox
+                checked={form.consentGiven}
+                onToggle={(v) => updateForm('consentGiven', v)}
+                label={t.consentLabel}
+                sublabel={t.consentSub}
+              />
+            </View>
+          </View>
+        );
+
+      case 'reminders':
+        return (
+          <View>
+            <View style={styles.stepIconRow}>
+              <View style={[styles.stepIconCircle, { backgroundColor: `${SAVER.green}18` }]}>
+                <Bell size={22} color={SAVER.green} />
+              </View>
+            </View>
+            <Text style={styles.stepTitle}>{t.reminderTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.reminderSub}</Text>
+
+            <RadioCards
+              options={[
+                { value: 'yes', label: t.reminderYes, icon: <Bell size={16} color={SAVER.green} /> },
+                { value: 'no', label: t.reminderNo, icon: <Bell size={16} color={SAVER.textMuted} /> },
+              ]}
+              value={form.wantsReminders === null ? null : form.wantsReminders ? 'yes' : 'no'}
+              onSelect={(v) => {
+                updateForm('wantsReminders', v === 'yes');
+                if (v === 'yes' && !form.reminderChannel) {
+                  updateForm('reminderChannel', form.contactPreference);
+                }
+              }}
+            />
+
+            {form.wantsReminders && (
               <>
-                <Text style={[styles.fieldLabel, { marginTop: 24 }]}>
-                  {copy.insuredMonths}
-                </Text>
-                <View style={styles.monthsRow}>
-                  {['3', '6', '12+'].map((m) => {
-                    const label =
-                      m === '3'
-                        ? copy.months3
-                        : m === '6'
-                          ? copy.months6
-                          : copy.months12;
-                    return (
-                      <Pressable
-                        key={m}
-                        style={[
-                          styles.monthBtn,
-                          formData.insuredMonths === m && styles.monthBtnSelected,
-                        ]}
-                        onPress={() => {
-                          setFormData((prev) => ({ ...prev, insuredMonths: m }));
-                          if (Platform.OS !== 'web') Haptics.selectionAsync();
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.monthText,
-                            formData.insuredMonths === m && styles.monthTextSelected,
-                          ]}
-                        >
-                          {label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <SegmentedSelector
+                  label={t.reminderChannel}
+                  options={[
+                    { value: 'whatsapp', label: t.contactWA },
+                    { value: 'text', label: t.contactTxt },
+                    { value: 'call', label: t.contactCall },
+                  ]}
+                  value={form.reminderChannel}
+                  onSelect={(v) => updateForm('reminderChannel', v as ContactPreference)}
+                />
+                <ConsentCheckbox
+                  checked={form.reminderConsent}
+                  onToggle={(v) => updateForm('reminderConsent', v)}
+                  label={t.reminderConsent}
+                />
               </>
             )}
-
-            <Text style={[styles.fieldLabel, { marginTop: 24 }]}>
-              {copy.homeownerQ}
-            </Text>
-            <View style={styles.yesNoRow}>
-              <Pressable
-                style={[
-                  styles.yesNoBtn,
-                  formData.homeowner === true && styles.yesNoBtnSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, homeowner: true }));
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.yesNoText,
-                    formData.homeowner === true && styles.yesNoTextSelected,
-                  ]}
-                >
-                  {copy.yes}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.yesNoBtn,
-                  formData.homeowner === false && styles.yesNoBtnSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, homeowner: false }));
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.yesNoText,
-                    formData.homeowner === false && styles.yesNoTextSelected,
-                  ]}
-                >
-                  {copy.no}
-                </Text>
-              </Pressable>
-            </View>
           </View>
         );
 
-      case 'contactPref':
+      case 'summary':
         return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('contactPref')}</View>
-            <Text style={styles.stepTitle}>{copy.contactPrefTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.contactPrefSubtitle}</Text>
-            <View style={styles.contactOptions}>
-              <Pressable
-                style={[
-                  styles.contactCard,
-                  formData.contactPreference === 'whatsapp' && styles.contactCardWhatsApp,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, contactPreference: 'whatsapp' }));
-                  setError('');
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-                testID="contact-whatsapp"
-              >
-                <View style={[
-                  styles.contactIconWrap,
-                  formData.contactPreference === 'whatsapp' && styles.contactIconWhatsApp,
-                ]}>
-                  <MessageCircle
-                    size={22}
-                    color={formData.contactPreference === 'whatsapp' ? '#FFFFFF' : DARK.whatsapp}
-                    strokeWidth={2}
-                  />
-                </View>
-                <View style={styles.contactTextWrap}>
-                  <Text style={[
-                    styles.contactLabel,
-                    formData.contactPreference === 'whatsapp' && styles.contactLabelActive,
-                  ]}>
-                    {copy.contactWhatsApp}
-                  </Text>
-                  <Text style={styles.contactDesc}>{copy.contactWhatsAppDesc}</Text>
-                </View>
-                {formData.contactPreference === 'whatsapp' && (
-                  <View style={styles.contactCheck}>
-                    <Check size={16} color="#FFFFFF" strokeWidth={3} />
-                  </View>
-                )}
-              </Pressable>
+          <View>
+            <Text style={styles.stepTitle}>{t.summaryTitle}</Text>
+            <Text style={styles.stepSubtitle}>{t.summarySub}</Text>
 
-              <Pressable
-                style={[
-                  styles.contactCard,
-                  formData.contactPreference === 'text' && styles.contactCardSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, contactPreference: 'text' }));
-                  setError('');
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-                testID="contact-text"
-              >
-                <View style={[
-                  styles.contactIconWrap,
-                  formData.contactPreference === 'text' && styles.contactIconSelected,
-                ]}>
-                  <MessageSquare
-                    size={22}
-                    color={formData.contactPreference === 'text' ? '#FFFFFF' : DARK.accent}
-                    strokeWidth={2}
-                  />
-                </View>
-                <View style={styles.contactTextWrap}>
-                  <Text style={[
-                    styles.contactLabel,
-                    formData.contactPreference === 'text' && styles.contactLabelActive,
-                  ]}>
-                    {copy.contactText}
-                  </Text>
-                  <Text style={styles.contactDesc}>{copy.contactTextDesc}</Text>
-                </View>
-                {formData.contactPreference === 'text' && (
-                  <View style={[styles.contactCheck, { backgroundColor: DARK.accent }]}>
-                    <Check size={16} color="#FFFFFF" strokeWidth={3} />
-                  </View>
-                )}
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.contactCard,
-                  formData.contactPreference === 'call' && styles.contactCardSelected,
-                ]}
-                onPress={() => {
-                  setFormData((prev) => ({ ...prev, contactPreference: 'call' }));
-                  setError('');
-                  if (Platform.OS !== 'web') Haptics.selectionAsync();
-                }}
-                testID="contact-call"
-              >
-                <View style={[
-                  styles.contactIconWrap,
-                  formData.contactPreference === 'call' && styles.contactIconSelected,
-                ]}>
-                  <PhoneCall
-                    size={22}
-                    color={formData.contactPreference === 'call' ? '#FFFFFF' : DARK.accent}
-                    strokeWidth={2}
-                  />
-                </View>
-                <View style={styles.contactTextWrap}>
-                  <Text style={[
-                    styles.contactLabel,
-                    formData.contactPreference === 'call' && styles.contactLabelActive,
-                  ]}>
-                    {copy.contactCall}
-                  </Text>
-                  <Text style={styles.contactDesc}>{copy.contactCallDesc}</Text>
-                </View>
-                {formData.contactPreference === 'call' && (
-                  <View style={[styles.contactCheck, { backgroundColor: DARK.accent }]}>
-                    <Check size={16} color="#FFFFFF" strokeWidth={3} />
-                  </View>
-                )}
-              </Pressable>
-            </View>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          </View>
-        );
-
-      case 'consent':
-        return (
-          <View style={styles.stepContent}>
-            <View style={styles.stepIconRow}>{getStepIcon('consent')}</View>
-            <Text style={styles.stepTitle}>{copy.consentTitle}</Text>
-            <Text style={styles.stepSubtitle}>{copy.consentSubtitle}</Text>
-
-            <View style={styles.readyBadge}>
-              <CheckCircle size={16} color={DARK.green} strokeWidth={2.5} />
-              <Text style={styles.readyBadgeText}>{copy.readyStatus}</Text>
+            <View style={[styles.readinessBadge, isReadyToQuote ? styles.readinessBadgeReady : styles.readinessBadgeAlmost]}>
+              <Check size={14} color={isReadyToQuote ? SAVER.green : SAVER.orange} />
+              <Text style={[styles.readinessText, { color: isReadyToQuote ? SAVER.green : SAVER.orange }]}>
+                {isReadyToQuote ? t.readyLabel : t.almostLabel}
+              </Text>
             </View>
 
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>{isEs ? 'Teléfono' : 'Phone'}</Text>
-                <Text style={styles.summaryValue}>{formData.phone}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>{isEs ? 'Nombre' : 'Name'}</Text>
-                <Text style={styles.summaryValue}>{formData.fullName}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>ZIP</Text>
-                <Text style={styles.summaryValue}>{formData.zip}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {isEs ? 'Conductores' : 'Drivers'}
-                </Text>
-                <Text style={styles.summaryValue}>{formData.driversCount}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {isEs ? 'Vehículos' : 'Vehicles'}
-                </Text>
-                <Text style={styles.summaryValue}>{formData.vehiclesCount}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {isEs ? 'Cobertura' : 'Coverage'}
-                </Text>
-                <Text style={styles.summaryValue}>
-                  {formData.coverage === 'minimum' ? '30/60/25' : isEs ? 'Completa' : 'Full'}
-                </Text>
-              </View>
-              <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.summaryLabel}>
-                  {isEs ? 'Contacto' : 'Contact'}
-                </Text>
-                <Text style={styles.summaryValue}>
-                  {formData.contactPreference === 'whatsapp'
-                    ? 'WhatsApp'
-                    : formData.contactPreference === 'text'
-                      ? isEs ? 'Texto' : 'Text'
-                      : isEs ? 'Llamada' : 'Call'}
-                </Text>
-              </View>
+            <View style={styles.summarySection}>
+              <SectionHeader title={t.sContact} />
+              <SummaryRow
+                label={isEs ? 'Teléfono' : 'Phone'}
+                value={form.phone || t.missing}
+                icon={<Phone size={14} color={SAVER.accent} />}
+                missing={!form.phone}
+              />
+              <SummaryRow
+                label={isEs ? 'Nombre' : 'Name'}
+                value={form.fullName || t.missing}
+                icon={<User size={14} color={SAVER.accent} />}
+                missing={!form.fullName}
+              />
+              <SummaryRow
+                label="ZIP"
+                value={form.zip || t.missing}
+                icon={<MapPin size={14} color={SAVER.accent} />}
+                missing={!form.zip}
+              />
             </View>
 
-            <Pressable
-              style={styles.consentRow}
-              onPress={() =>
-                setFormData((prev) => ({ ...prev, consentGiven: !prev.consentGiven }))
-              }
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  formData.consentGiven && styles.checkboxChecked,
-                ]}
-              >
-                {formData.consentGiven && (
-                  <Check size={14} color="#FFFFFF" strokeWidth={3} />
-                )}
-              </View>
-              <Text style={styles.consentLabel}>{copy.consentCheck}</Text>
-            </Pressable>
-            <Text style={styles.consentText}>{copy.consentText}</Text>
+            <View style={styles.summarySection}>
+              <SectionHeader title={t.sDrivers} />
+              {form.drivers.filter(d => d.name.trim()).map((d, i) => (
+                <SummaryRow
+                  key={i}
+                  label={`${isEs ? 'Conductor' : 'Driver'} ${i + 1}`}
+                  value={`${d.name}${d.dob ? ` • ${d.dob}` : ''}`}
+                  icon={<Users size={14} color={SAVER.accent} />}
+                />
+              ))}
+            </View>
+
+            <View style={styles.summarySection}>
+              <SectionHeader title={t.sVehicles} />
+              {form.vins.filter(v => v.trim()).length > 0 ? (
+                form.vins.filter(v => v.trim()).map((v, i) => (
+                  <SummaryRow
+                    key={i}
+                    label={`${isEs ? 'Vehículo' : 'Vehicle'} ${i + 1}`}
+                    value={v}
+                    icon={<Car size={14} color={SAVER.green} />}
+                  />
+                ))
+              ) : (
+                <SummaryRow
+                  label={isEs ? 'VINs' : 'VINs'}
+                  value={t.missing}
+                  icon={<Car size={14} color={SAVER.green} />}
+                  missing
+                />
+              )}
+            </View>
+
+            <View style={styles.summarySection}>
+              <SectionHeader title={t.sCoverage} />
+              <SummaryRow
+                label={isEs ? 'Tipo' : 'Type'}
+                value={form.coverage === 'minimum' ? t.coverageMin : form.coverage === 'full' ? t.coverageFull : t.missing}
+                icon={<Shield size={14} color={SAVER.accent} />}
+                missing={!form.coverage}
+              />
+            </View>
+
+            <View style={styles.summarySection}>
+              <SectionHeader title={t.sPrefs} />
+              <SummaryRow
+                label={isEs ? 'Contacto' : 'Contact'}
+                value={form.contactPreference === 'whatsapp' ? 'WhatsApp' : form.contactPreference === 'text' ? (isEs ? 'Texto' : 'Text') : (isEs ? 'Llamada' : 'Call')}
+                icon={<MessageCircle size={14} color={SAVER.whatsapp} />}
+              />
+              <SummaryRow
+                label={isEs ? 'Ahorro mínimo' : 'Min savings'}
+                value={`${form.savingsThreshold}%`}
+              />
+              {form.wantsReminders && (
+                <SummaryRow
+                  label={isEs ? 'Recordatorios' : 'Reminders'}
+                  value={isEs ? 'Sí' : 'Yes'}
+                  icon={<Bell size={14} color={SAVER.green} />}
+                />
+              )}
+            </View>
           </View>
         );
 
       default:
         return null;
     }
-  };
-
-  const isLastStep = step === 'consent';
-  const canProceed = (() => {
-    switch (step) {
-      case 'phone':
-        return formData.phone.replace(/\D/g, '').length === 10;
-      case 'name':
-        return formData.fullName.trim().length >= 2;
-      case 'zip':
-        return formData.zip.replace(/\D/g, '').length === 5;
-      case 'driversCount':
-        return true;
-      case 'driverInfo': {
-        const d = formData.drivers[currentDriverIndex];
-        return (
-          d &&
-          d.name.trim().length >= 2 &&
-          /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/(19|20)\d{2}$/.test(d.dob)
-        );
-      }
-      case 'vehiclesCount':
-        return true;
-      case 'vin':
-        return (
-          (formData.vins[currentVinIndex] || '').replace(/[^A-Z0-9]/gi, '').length ===
-          17
-        );
-      case 'coverage':
-        return formData.coverage !== null;
-      case 'discounts':
-        return true;
-      case 'contactPref':
-        return formData.contactPreference !== null;
-      case 'consent':
-        return formData.consentGiven;
-      default:
-        return false;
-    }
-  })();
-
-  const getProgress = () => {
-    let progress = currentStepIndex;
-    if (step === 'driverInfo') {
-      progress =
-        currentStepIndex + currentDriverIndex / Math.max(formData.driversCount, 1);
-    }
-    if (step === 'vin') {
-      progress =
-        currentStepIndex + currentVinIndex / Math.max(formData.vehiclesCount, 1);
-    }
-    return (progress + 1) / totalSteps;
   };
 
   return (
@@ -1274,30 +919,25 @@ export default function QuoteFormScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: copy.headerTitle,
-          headerBackTitle: copy.back,
-          headerStyle: { backgroundColor: DARK.bg },
-          headerTintColor: DARK.text,
-          headerTitleStyle: { color: DARK.text, fontWeight: '700' as const },
-          headerRight: () => (
-            <Pressable onPress={toggleLanguage} style={styles.langButton} hitSlop={8}>
-              <Globe size={16} color={DARK.accent} />
-              <Text style={styles.langText}>{isEs ? 'EN' : 'ES'}</Text>
-            </Pressable>
-          ),
+          headerTitle: isEs ? 'Obtener Cotización' : 'Get a Quote',
+          headerBackTitle: t.back,
+          headerStyle: { backgroundColor: SAVER.bg },
+          headerTintColor: SAVER.text,
+          headerTitleStyle: { fontWeight: '700' as const },
         }}
       />
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressTrack}>
-          <View
-            style={[styles.progressFill, { width: `${getProgress() * 100}%` }]}
-          />
-        </View>
-        <Text style={styles.progressText}>
-          {currentStepIndex + 1} {copy.stepOf} {totalSteps}
-        </Text>
-      </View>
+      <ProgressBar
+        progress={progress}
+        currentStep={stepIndex + 1}
+        totalSteps={totalSteps}
+      />
+
+      <CoverageExplainer
+        visible={showCoverageExplainer}
+        onClose={() => setShowCoverageExplainer(false)}
+        language={language}
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1316,55 +956,30 @@ export default function QuoteFormScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          <Pressable style={styles.backButton} onPress={goBack} testID="back-button">
-            <ChevronLeft size={20} color={DARK.textSecondary} />
-            <Text style={styles.backButtonText}>{copy.back}</Text>
+          <Pressable style={styles.backBtn} onPress={goBack} testID="step-back">
+            <ChevronLeft size={20} color={SAVER.textSecondary} />
+            <Text style={styles.backBtnText}>{t.back}</Text>
           </Pressable>
 
           <Pressable
-            style={[styles.nextButton, !canProceed && styles.nextButtonDisabled]}
-            onPress={isLastStep ? handleSubmit : goNext}
+            style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
+            onPress={handleNext}
             disabled={!canProceed || isSubmitting}
-            testID="next-button"
+            testID="step-next"
           >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+            {step === 'summary' ? (
+              <Text style={styles.nextBtnText}>
+                {isSubmitting ? t.submittingBtn : t.submitBtn}
+              </Text>
             ) : (
               <>
-                <Text style={styles.nextButtonText}>
-                  {isLastStep ? copy.submit : copy.next}
-                </Text>
-                {!isLastStep && <ChevronRight size={18} color="#FFFFFF" />}
+                <Text style={styles.nextBtnText}>{t.next}</Text>
+                <ChevronRight size={18} color="#FFFFFF" />
               </>
             )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
-
-      <Modal
-        visible={showCoverageInfo}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCoverageInfo(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIconRow}>
-              <Shield size={28} color={DARK.accent} />
-            </View>
-            <Text style={styles.modalTitle}>{copy.coverageInfoTitle}</Text>
-            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalBody}>{copy.coverageInfoBody}</Text>
-            </ScrollView>
-            <Pressable
-              style={styles.modalBtn}
-              onPress={() => setShowCoverageInfo(false)}
-            >
-              <Text style={styles.modalBtnText}>{copy.coverageInfoClose}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1372,452 +987,159 @@ export default function QuoteFormScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DARK.bg,
+    backgroundColor: SAVER.bg,
   },
   flex: {
     flex: 1,
   },
-  langButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: DARK.accentLight,
-  },
-  langText: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-    color: DARK.accent,
-  },
-  progressContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  progressTrack: {
-    height: 3,
-    backgroundColor: DARK.border,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: DARK.accent,
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 12,
-    color: DARK.textMuted,
-    marginTop: 8,
-    textAlign: 'center',
-  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-  stepContent: {
-    flex: 1,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
   stepIconRow: {
     marginBottom: 16,
   },
+  stepIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stepTitle: {
     fontSize: 26,
-    fontWeight: '700' as const,
-    color: DARK.text,
+    fontWeight: '800' as const,
+    color: SAVER.text,
+    letterSpacing: -0.5,
     marginBottom: 8,
-    lineHeight: 32,
   },
   stepSubtitle: {
     fontSize: 15,
-    color: DARK.textSecondary,
-    marginBottom: 28,
+    color: SAVER.textSecondary,
     lineHeight: 22,
+    marginBottom: 28,
   },
-  input: {
-    backgroundColor: DARK.surface,
-    borderWidth: 1.5,
-    borderColor: DARK.border,
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 17,
-    color: DARK.text,
-  },
-  inputError: {
-    borderColor: DARK.error,
-    backgroundColor: DARK.errorLight,
-  },
-  inputSpacer: {
-    height: 14,
-  },
-  vinInput: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    letterSpacing: 1,
-  },
-  vinCounter: {
-    fontSize: 12,
-    color: DARK.textMuted,
-    textAlign: 'right',
-    marginTop: 8,
-  },
-  errorText: {
-    fontSize: 13,
-    color: DARK.error,
-    marginTop: 8,
-  },
-  countSelector: {
-    flexDirection: 'row',
-    gap: 14,
-  },
-  countOption: {
-    flex: 1,
-    paddingVertical: 24,
-    borderRadius: 16,
-    backgroundColor: DARK.surface,
-    borderWidth: 2,
-    borderColor: DARK.border,
+  skipLink: {
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 12,
   },
-  countOptionSelected: {
-    borderColor: DARK.accent,
-    backgroundColor: DARK.accentLight,
-  },
-  countText: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    color: DARK.textSecondary,
-  },
-  countTextSelected: {
-    color: DARK.accent,
-  },
-  coverageOptions: {
-    gap: 14,
-  },
-  coverageCard: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: DARK.surface,
-    borderWidth: 2,
-    borderColor: DARK.border,
-  },
-  coverageCardSelected: {
-    borderColor: DARK.accent,
-    backgroundColor: DARK.accentLight,
-  },
-  coverageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  coverageLabel: {
-    fontSize: 17,
-    fontWeight: '600' as const,
-    color: DARK.text,
-  },
-  coverageLabelSelected: {
-    color: DARK.accent,
-  },
-  coverageDesc: {
+  skipLinkText: {
     fontSize: 14,
-    color: DARK.textSecondary,
-    lineHeight: 20,
+    color: SAVER.textMuted,
+    fontWeight: '500' as const,
+    textDecorationLine: 'underline' as const,
   },
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: DARK.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoLink: {
+  explainLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 16,
+    paddingVertical: 12,
     alignSelf: 'center',
-    paddingVertical: 8,
   },
-  infoLinkText: {
+  explainLinkText: {
     fontSize: 14,
-    color: DARK.accent,
-    fontWeight: '500' as const,
+    color: SAVER.accent,
+    fontWeight: '600' as const,
   },
-  fieldLabel: {
+  savingsRow: {
+    marginBottom: 20,
+  },
+  savingsLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: SAVER.textSecondary,
+    marginBottom: 10,
+  },
+  savingsSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  savingsChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: SAVER.surfaceLight,
+    borderWidth: 1,
+    borderColor: SAVER.border,
+    alignItems: 'center',
+  },
+  savingsChipActive: {
+    backgroundColor: SAVER.greenLight,
+    borderColor: SAVER.green,
+  },
+  savingsChipText: {
     fontSize: 15,
-    fontWeight: '600' as const,
-    color: DARK.text,
-    marginBottom: 12,
-  },
-  yesNoRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  yesNoBtn: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 14,
-    backgroundColor: DARK.surface,
-    borderWidth: 2,
-    borderColor: DARK.border,
-    alignItems: 'center',
-  },
-  yesNoBtnSelected: {
-    borderColor: DARK.accent,
-    backgroundColor: DARK.accentLight,
-  },
-  yesNoText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: DARK.textSecondary,
-  },
-  yesNoTextSelected: {
-    color: DARK.accent,
-  },
-  monthsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  monthBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: DARK.surface,
-    borderWidth: 1.5,
-    borderColor: DARK.border,
-    alignItems: 'center',
-  },
-  monthBtnSelected: {
-    borderColor: DARK.green,
-    backgroundColor: DARK.greenLight,
-  },
-  monthText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: DARK.textSecondary,
-  },
-  monthTextSelected: {
-    color: DARK.green,
-  },
-  contactOptions: {
-    gap: 12,
-  },
-  contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: DARK.surface,
-    borderWidth: 2,
-    borderColor: DARK.border,
-    gap: 14,
-  },
-  contactCardWhatsApp: {
-    borderColor: DARK.whatsapp,
-    backgroundColor: DARK.whatsappLight,
-  },
-  contactCardSelected: {
-    borderColor: DARK.accent,
-    backgroundColor: DARK.accentLight,
-  },
-  contactIconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contactIconWhatsApp: {
-    backgroundColor: DARK.whatsapp,
-  },
-  contactIconSelected: {
-    backgroundColor: DARK.accent,
-  },
-  contactTextWrap: {
-    flex: 1,
-  },
-  contactLabel: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: DARK.text,
-  },
-  contactLabelActive: {
     fontWeight: '700' as const,
+    color: SAVER.textSecondary,
   },
-  contactDesc: {
-    fontSize: 13,
-    color: DARK.textMuted,
-    marginTop: 2,
+  savingsChipTextActive: {
+    color: SAVER.green,
   },
-  contactCheck: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: DARK.whatsapp,
-    alignItems: 'center',
-    justifyContent: 'center',
+  consentSection: {
+    marginTop: 8,
   },
-  readyBadge: {
+  readinessBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: DARK.greenLight,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     alignSelf: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  readyBadgeText: {
-    fontSize: 12,
-    fontWeight: '800' as const,
-    color: DARK.green,
-    letterSpacing: 1,
+  readinessBadgeReady: {
+    backgroundColor: SAVER.greenLight,
   },
-  summaryCard: {
-    backgroundColor: DARK.surface,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: DARK.border,
+  readinessBadgeAlmost: {
+    backgroundColor: SAVER.orangeLight,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: DARK.border,
-  },
-  summaryLabel: {
+  readinessText: {
     fontSize: 14,
-    color: DARK.textSecondary,
+    fontWeight: '700' as const,
   },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: DARK.text,
-  },
-  consentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: DARK.border,
-    backgroundColor: DARK.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: DARK.accent,
-    borderColor: DARK.accent,
-  },
-  consentLabel: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: DARK.text,
-    flex: 1,
-  },
-  consentText: {
-    fontSize: 13,
-    color: DARK.textMuted,
-    lineHeight: 20,
+  summarySection: {
+    marginBottom: 20,
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 24,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: DARK.border,
-    backgroundColor: DARK.bg,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
-  backButton: {
+  backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
+    gap: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
   },
-  backButtonText: {
+  backBtnText: {
     fontSize: 15,
-    color: DARK.textSecondary,
-    marginLeft: 4,
+    fontWeight: '500' as const,
+    color: SAVER.textSecondary,
   },
-  nextButton: {
+  nextBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DARK.accent,
+    gap: 6,
+    backgroundColor: SAVER.accent,
     paddingVertical: 14,
     paddingHorizontal: 28,
-    borderRadius: 28,
-    gap: 6,
-  },
-  nextButtonDisabled: {
-    backgroundColor: DARK.border,
-  },
-  nextButtonText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: DARK.surface,
-    borderRadius: 24,
-    padding: 28,
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: '80%',
-    borderWidth: 1,
-    borderColor: DARK.border,
-  },
-  modalIconRow: {
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    color: DARK.text,
-    marginBottom: 16,
-  },
-  modalScroll: {
-    maxHeight: 320,
-    marginBottom: 20,
-  },
-  modalBody: {
-    fontSize: 15,
-    color: DARK.textSecondary,
-    lineHeight: 24,
-  },
-  modalBtn: {
-    backgroundColor: DARK.accent,
-    paddingVertical: 14,
     borderRadius: 14,
-    alignItems: 'center',
+    marginLeft: 'auto',
   },
-  modalBtnText: {
+  nextBtnDisabled: {
+    opacity: 0.4,
+  },
+  nextBtnText: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: '700' as const,
     color: '#FFFFFF',
   },
 });

@@ -1,87 +1,62 @@
 # Frontend → Backend Field Map
 
-## Quote Form (app/quote-form.tsx) → Supabase `leads` table
+## Intake / Quote Form → `leads` table
 
-| UI Field | Form Key | DB Column | Notes |
-|----------|----------|-----------|-------|
-| Phone | `phone` | `phone` (via payload) | 10-digit, stripped |
-| Full Name | `fullName` | `full_name` | As on license |
-| ZIP Code | `zip` | `zip` | 5-digit |
-| Drivers | `drivers[]` | `drivers` (JSONB) | `{ name, dob }` per driver |
-| Vehicles (VIN) | `vins[]` | `vehicles` (JSONB) | `{ vin }` per vehicle |
-| Coverage | `coverage` | `coverage_type` | `"liability"` or `"full"` |
-| Currently Insured | `currentlyInsured` | `currently_insured` | Boolean |
-| Insured Months | `insuredMonths` | `insured_months` | `"3"`, `"6"`, `"12+"` |
-| Homeowner | `homeowner` | `homeowner` | Boolean |
-| Source | (auto) | `source` | `"quote-form"` |
-| Status | (auto) | `status` | `"new"` |
+| UI Field | Backend Column | Type | Notes |
+|---|---|---|---|
+| phone | `phone` | text | Digits only, stripped formatting |
+| fullName | `intake_json.insuredFullName` | text | Trimmed |
+| zip | `intake_json.garagingAddress.zip` | text | 5-digit |
+| drivers[].name | `intake_json.drivers[].fullName` | text | |
+| drivers[].dob | `intake_json.drivers[].dob` | text | MM/DD/YYYY |
+| vins[] | `intake_json.vehicles[].vin` | text | Uppercased, 17-char |
+| coverage | `intake_json.coverageType` | enum | `minimum` or `full` |
+| currentlyInsured | (derived) | boolean | Not stored directly |
+| insuredMonths | (derived) | string | Not stored directly |
+| homeowner | (derived) | boolean | Not stored directly |
+| contactPreference | `intake_json.contactPreference` | enum | `whatsapp`, `text`, `call` |
+| languagePref | `language` | enum | `en` or `es` |
+| savingsThreshold | (future) | number | Percentage, stored in user prefs |
+| consentGiven | `consent` | boolean | |
+| wantsReminders | (future) | boolean | Stored in user prefs |
+| reminderChannel | (future) | enum | `whatsapp`, `text`, `call` |
 
-## Upload Policy (app/upload-document.tsx) → tRPC `intake.submit` + local context
+## Computed Fields (backend calculates)
 
-| UI Field | Source | Backend Destination | Notes |
-|----------|--------|---------------------|-------|
-| Policy Doc | AI scan | `currentPolicyDoc` | `"uploaded"` flag |
-| Carrier | AI scan | `currentCarrier` | Extracted from dec page |
-| Premium | AI scan | `currentPremium` | Monthly amount |
-| VIN(s) | AI scan | `vehicles[].vin` | From scanned doc |
-| Drivers | AI scan | `drivers[].fullName`, `.dob` | From scanned doc |
-| Liability BI/PD | AI scan | `liabilityLimits` | Combined string |
-| Deductibles | AI scan | `collisionDeductible`, `compDeductible` | Numeric |
-| Expiry Date | AI scan | `policyExpiryDate` | ISO string |
-| Consent | User checkbox | `consentContactAllowed` | Boolean |
-| Phone | User profile | `phone` | From AppContext |
-| Language | User pref | `language` | `"en"` or `"es"` |
+| Backend Column | Source | Notes |
+|---|---|---|
+| `status` | `checkQuoteReadiness()` | `WAITING_DOCS`, `NEEDS_INFO`, `READY_TO_QUOTE` |
+| `can_quote` | `canQuote()` | boolean |
+| `score` | `completenessScore` | 0-100 |
+| `missing_required` | `getRequiredMissing()` | Array of `{ fieldKey, message }` |
+| `missing_recommended` | `getRecommendedMissing()` | Array of `{ fieldKey, message }` |
+| `next_question_en` | First missing field | English prompt |
+| `next_question_es` | First missing field | Spanish prompt |
 
-Note: Upload flow falls back to local leadId if tRPC backend is unavailable.
+## Canonical Intake Statuses (frontend must use only these)
 
-## Agent Application (app/agents.tsx) → Supabase `agent_applications` table
+| Status | Meaning |
+|---|---|
+| `WAITING_DOCS` | Documents expected but not received |
+| `NEEDS_INFO` | Some required fields are missing |
+| `READY_TO_QUOTE` | All required fields present, can quote |
 
-| UI Field | Form Key | DB Column | Notes |
-|----------|----------|-----------|-------|
-| Full Name | `fullName` | `full_name` | Required |
-| Phone | `phone` | `phone` | Required, 10+ digits |
-| Email | `email` | `email` | Required, must contain @ |
-| Licensed | `licensed` | `licensed` | Boolean toggle |
-| States | `states` | `states` | Comma-separated |
-| Years Exp | `yearsOfExperience` | `years_experience` | Numeric |
-| Notes | `notes` | `notes` | Optional |
+## Referral → `leads` table (fallback)
 
-## SaverContext (contexts/SaverContext.tsx) → Supabase `leads` table
+| UI Field | Backend Column | Notes |
+|---|---|---|
+| referredName | `intake_json.insuredFullName` | |
+| referredPhone | `phone` | Digits only |
+| referrerPhone | (not stored yet) | Future: referrals table |
+| language | `language` | |
 
-| Context Method | Supabase Table | Operation |
-|----------------|---------------|-----------|
-| `submitQuote` | `leads` | INSERT |
-| `submitAgentApplication` | `agent_applications` | INSERT |
-| `submitIntake` | `leads` | INSERT (with readiness evaluation) |
-| `leads` query | `leads` | SELECT by phone |
+## Upload Intake → `leads` table
 
-## Readiness Evaluation (utils/quoteReadiness.ts)
+Same as Quote Form, plus:
 
-Evaluated on intake submit. Fields checked:
-
-### Required (Critical/High)
-- `phone` — Contact number
-- `insuredFullName` — Primary insured
-- `garagingAddress.zip` — Garaging ZIP
-- `vehicles[0].vin` — At least 1 VIN
-- `drivers[0].fullName` — At least 1 driver name
-- `drivers[0].dob` — At least 1 driver DOB
-- `coverageType` — Minimum or Full
-- `consentToContact` — Must be true
-
-### Recommended (Medium/Low)
-- `liabilityLimits` — Specific limits
-- `collisionDeductible` — If full coverage
-- `compDeductible` — If full coverage
-- `currentCarrier` — For comparison
-- `currentPremium` — For savings calculation
-- `contactPreference` — WhatsApp/text/call
-- `drivingHistory` — Tickets/accidents
-
-## Temporary/Local Fields (Not Yet in Backend)
-| Field | Location | Status |
-|-------|----------|--------|
-| Referral name/phone | `app/referral.tsx` | Local only — no backend table yet |
-| Pending intake | `AppContext` → AsyncStorage | Persisted locally, synced on submit |
-| Video evidence | `AppContext` → AsyncStorage | Local only |
-| Accident reports | `AppContext` → AsyncStorage | Local only |
+| UI Field | Backend Column | Notes |
+|---|---|---|
+| currentCarrier | `intake_json.currentCarrier` | Extracted from doc |
+| currentPremium | `intake_json.currentPremium` | Extracted from doc |
+| policyExpiryDate | `intake_json.policyExpiryDate` | Extracted from doc |
+| currentPolicyDoc | `intake_json.currentPolicyDoc` | URL reference |
