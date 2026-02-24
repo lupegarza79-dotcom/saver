@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider } from "@/contexts/AppContext";
 import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
+import { SaverProvider } from "@/contexts/SaverContext";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -63,6 +64,16 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="referral"
+        options={{
+          headerShown: true,
+          headerTitle: 'Refer a Friend',
+          headerBackTitle: 'Back',
+          headerStyle: { backgroundColor: '#0A1120' },
+          headerTintColor: '#F0F4F8',
+        }}
+      />
+      <Stack.Screen
         name="admin"
         options={{
           headerShown: false,
@@ -83,9 +94,11 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
             <AppProvider>
-              <AnalyticsProvider>
-                <RootLayoutNav />
-              </AnalyticsProvider>
+              <SaverProvider>
+                <AnalyticsProvider>
+                  <RootLayoutNav />
+                </AnalyticsProvider>
+              </SaverProvider>
             </AppProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

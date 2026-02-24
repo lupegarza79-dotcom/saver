@@ -16,10 +16,9 @@ import {
   Shield,
   ChevronRight,
   Zap,
-  Lock,
-  Star,
 } from "lucide-react-native";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import TrustBadges from "@/components/TrustBadges";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useApp } from "@/contexts/AppContext";
@@ -69,6 +68,7 @@ export default function HomeScreen() {
         trust3: "Datos seguros",
         agent: "¿Eres agente?",
         agentCta: "Únete aquí",
+        refer: "Refiere a un amigo",
         terms: "Términos",
         version: "Saver v1.0",
       };
@@ -89,6 +89,7 @@ export default function HomeScreen() {
       trust3: "Data secure",
       agent: "Are you an agent?",
       agentCta: "Join here",
+      refer: "Refer a friend",
       terms: "Terms",
       version: "Saver v1.0",
     };
@@ -115,6 +116,13 @@ export default function HomeScreen() {
       Haptics.selectionAsync();
     }
     router.push("/agents" as any);
+  };
+
+  const handleReferralPress = () => {
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync();
+    }
+    router.push("/referral" as any);
   };
 
   const handleTermsPress = () => {
@@ -224,38 +232,43 @@ export default function HomeScreen() {
           </Animated.View>
         </View>
 
-        <View style={styles.trustRow}>
-          <View style={styles.trustItem}>
-            <Lock size={13} color="#00C96F" strokeWidth={2.5} />
-            <Text style={styles.trustText}>{copy.trust1}</Text>
-          </View>
-          <View style={styles.trustDot} />
-          <View style={styles.trustItem}>
-            <Star size={13} color="#00C96F" strokeWidth={2.5} />
-            <Text style={styles.trustText}>{copy.trust2}</Text>
-          </View>
-          <View style={styles.trustDot} />
-          <View style={styles.trustItem}>
-            <Shield size={13} color="#00C96F" strokeWidth={2.5} />
-            <Text style={styles.trustText}>{copy.trust3}</Text>
-          </View>
+        <View style={styles.trustSection}>
+          <TrustBadges
+            items={[
+              { icon: "lock", label: copy.trust1 },
+              { icon: "star", label: copy.trust2 },
+              { icon: "shield", label: copy.trust3 },
+            ]}
+          />
         </View>
       </View>
 
       <View
         style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}
       >
-        <Pressable
-          onPress={handleAgentPress}
-          style={({ pressed }) => [
-            styles.agentRow,
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Text style={styles.agentLabel}>{copy.agent}</Text>
-          <Text style={styles.agentCta}>{copy.agentCta}</Text>
-          <ChevronRight size={14} color="rgba(255,255,255,0.4)" />
-        </Pressable>
+        <View style={styles.footerActions}>
+          <Pressable
+            onPress={handleReferralPress}
+            style={({ pressed }) => [
+              styles.referralRow,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={styles.referralLabel}>{copy.refer}</Text>
+            <ChevronRight size={14} color="rgba(255,149,0,0.6)" />
+          </Pressable>
+          <Pressable
+            onPress={handleAgentPress}
+            style={({ pressed }) => [
+              styles.agentRow,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={styles.agentLabel}>{copy.agent}</Text>
+            <Text style={styles.agentCta}>{copy.agentCta}</Text>
+            <ChevronRight size={14} color="rgba(255,255,255,0.4)" />
+          </Pressable>
+        </View>
 
         <View style={styles.footerBottom}>
           <Pressable onPress={handleTermsPress} hitSlop={8}>
@@ -460,45 +473,45 @@ const styles = StyleSheet.create({
     fontWeight: "400" as const,
     marginTop: 2,
   },
-  trustRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  trustSection: {
     marginTop: 28,
-    gap: 8,
-  },
-  trustItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  trustText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
-    fontWeight: "500" as const,
-  },
-  trustDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: "rgba(255,255,255,0.2)",
   },
   footer: {
     paddingHorizontal: 24,
     paddingTop: 12,
+  },
+  footerActions: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  referralRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,149,0,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,149,0,0.12)",
+  },
+  referralLabel: {
+    color: "#FF9500",
+    fontSize: 14,
+    fontWeight: "600" as const,
   },
   agentRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
-    marginBottom: 14,
   },
   agentLabel: {
     color: "rgba(255,255,255,0.5)",
