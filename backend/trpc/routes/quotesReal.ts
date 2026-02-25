@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure } from "../create-context";
 import { leadStore } from "../store/leadStore";
 import { quoteStore } from "../store/quoteStore";
 import { emitWebhook } from "../utils/webhookEmitter";
+import { logLeadEvent } from "../utils/logEvent";
 
 const ingestQuoteSchema = z.object({
   provider: z.string().min(2),
@@ -60,6 +61,10 @@ export const quotesRealRouter = createTRPCRouter({
         status: 'REQUESTED',
         canQuote: true,
         completenessScore: lead.score,
+      });
+
+      await logLeadEvent(lead.id, 'quote.requested', 'system', input.requestedBy, {
+        quoteRequestId: qr.id,
       });
 
       console.log(`[QUOTES] Created QuoteRequest ${qr.id} for lead ${lead.id}`);
@@ -153,6 +158,12 @@ export const quotesRealRouter = createTRPCRouter({
         bestPremiumCents: stored[0]?.premiumCents,
       });
 
+      await logLeadEvent(qr.leadId, 'quote.completed', 'system', undefined, {
+        quoteRequestId: qr.id,
+        quoteCount: stored.length,
+        bestPremiumCents: stored[0]?.premiumCents,
+      });
+
       console.log(`[QUOTES] Ingested ${stored.length} quotes for QuoteRequest ${input.quoteRequestId}`);
 
       return {
@@ -185,6 +196,11 @@ export const quotesRealRouter = createTRPCRouter({
         status: 'FAILED',
         canQuote: true,
         completenessScore: lead?.score ?? 100,
+      });
+
+      await logLeadEvent(qr.leadId, 'quote.failed', 'system', undefined, {
+        quoteRequestId: qr.id,
+        reason: input.reason,
       });
 
       console.log(`[QUOTES] Failed QuoteRequest ${input.quoteRequestId}: ${input.reason}`);

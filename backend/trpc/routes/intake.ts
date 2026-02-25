@@ -15,6 +15,7 @@ import {
 } from "../utils/webhookEmitter";
 import { leadStore } from "../store/leadStore";
 import { isSupabaseConfigured } from "@/backend/supabase/client";
+import { logLeadEvent } from "../utils/logEvent";
 import type { IntakeStatus } from "@/types/intake";
 
 const priceGateSchema = z.object({
@@ -126,6 +127,12 @@ export const intakeRouter = createTRPCRouter({
         });
         leadId = leadRecord.id;
         console.log(`[INTAKE] Lead persisted to ${isSupabaseConfigured() ? 'Supabase' : 'memory'}: ${leadId}`);
+        await logLeadEvent(leadId, 'lead.created', 'system', userId, {
+          status,
+          score: completenessScore,
+          canQuote: ready,
+          phone: intake.phone,
+        });
       } catch (err) {
         console.error(`[INTAKE] Failed to persist lead:`, err);
         leadId = `lead_${Date.now()}`;
@@ -272,6 +279,12 @@ export const intakeRouter = createTRPCRouter({
         newStatus: status,
         completenessScore,
         updatedAt: new Date().toISOString(),
+      });
+
+      await logLeadEvent(leadId, 'lead.field_updated', 'customer', userId, {
+        fieldKey: key,
+        newStatus: status,
+        completenessScore,
       });
       
       if (ready) {

@@ -13,6 +13,7 @@ import {
 } from "@/utils/quoteReadiness";
 import type { QuoteInput, IntakeStatus, AssistantTurn } from "@/types/intake";
 import { emitWebhook } from "../utils/webhookEmitter";
+import { logLeadEvent } from "../utils/logEvent";
 
 function runGate(input: QuoteInput): {
   canQuote: boolean;
@@ -190,6 +191,13 @@ export const assistantRouter = createTRPCRouter({
       const followUp = buildFollowUpMessage(gated);
       const expectedKey = pickExpectedFieldKey(gated);
 
+      await logLeadEvent(lead.id, 'lead.intake_submitted', 'customer', input.userId, {
+        status: gated.status,
+        canQuote: gated.canQuote,
+        completenessScore: gated.completenessScore,
+        isNew: !input.leadId,
+      });
+
       await emitWebhook(event as any, {
         leadId: lead.id,
         userId: input.userId,
@@ -322,6 +330,13 @@ export const assistantRouter = createTRPCRouter({
       const event = gated.canQuote ? 'lead.ready_to_quote' : 'lead.missing_fields_updated';
       const followUp = buildFollowUpMessage(gated);
       const expectedKey = pickExpectedFieldKey(gated);
+
+      await logLeadEvent(lead.id, 'lead.answer_submitted', 'customer', input.userId, {
+        fieldKey: input.expectedFieldKey,
+        newStatus: gated.status,
+        canQuote: gated.canQuote,
+        completenessScore: gated.completenessScore,
+      });
 
       await emitWebhook(event as any, {
         leadId: lead.id,
